@@ -5,10 +5,13 @@
 
 
 struct Room {
-	char name[50];
+	char name[9];
+	char type[11];
+	char connections[6][9];
+	int numConnections;
 };
 
-int numInArr(int, int*);
+int numInArr(int, int*, int);
 void CreateRooms(struct Room*);
 int IsGraphFull();
 void AddRandomConnection();
@@ -28,10 +31,10 @@ int main() {
 	CreateRooms(rooms);
 	
 
-	//printf("These are the rooms in the Rooms array:\n");
-	//for(i = 0; i < 7; i++) {
-	//	printf("%s\n", rooms[i].name);
-	//}
+	printf("These are the rooms in the Rooms array:\n");
+	for(i = 0; i < 7; i++) {
+		printf("Name: %s, Type: %s, # of Conns: %d\n", rooms[i].name, rooms[i].type, rooms[i].numConnections);
+	}
 	
 	// Create all connections in graph
 	//while (IsGraphFull() == 0) {
@@ -41,9 +44,9 @@ int main() {
 	return 0;
 }
 
-int numInArr(int num, int* arr) {
+int numInArr(int num, int* arr, int length) {
 	int i;
-	for(i = 0; i < 7; i++) {
+	for(i = 0; i < length; i++) {
 		if(arr[i] == num) {
 			return 1;
 		}
@@ -69,12 +72,14 @@ void CreateRooms(struct Room* rooms) {
 		"Dungeon"
 	};
 
+	// Create an array of random numbers
 	int numCount = 0;
 	while(numCount < 7) {
 		// pick a number between 0 and 9
 		int randNum = rand() % 10;
-		printf("random num is: %d\n", randNum);
-		if(!numInArr(randNum, randNumsArr)) {
+		// Check to make sure the chosen random number isn't already in the array. 
+		// If not, add it to the random number array
+		if(!numInArr(randNum, randNumsArr, 7)) {
 			randNumsArr[numCount] = randNum;
 			numCount++;
 		}
@@ -86,6 +91,28 @@ void CreateRooms(struct Room* rooms) {
 		printf("%d, ", randNumsArr[i]);
 	}
 	printf("\n");
+
+	// Based on the random numbers, use the names array to put names into the Rooms array.
+	// Also use this loop to add room types and set numConnections to 0
+	for(i = 0; i < 7; i++) {
+		// Name assignment
+		int num = randNumsArr[i];
+		strcpy(rooms[i].name, names[num]);
+		// Room type assignment
+		if(i == 0) {
+			strcpy(rooms[i].type, "START_ROOM");
+		} else if(i == 1) {
+			strcpy(rooms[i].type, "END_ROOM");
+		} else {
+			strcpy(rooms[i].type, "MID_ROOM");
+		}
+		// Set number of connections of all rooms to 0
+		rooms[i].numConnections = 0;
+	}
+
+	
+
+
 }
 
 

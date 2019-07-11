@@ -15,7 +15,7 @@ int numInArr(int, int*, int);
 void CreateRooms(struct Room*);
 int IsGraphFull();
 void AddRandomConnection();
-struct Room GetRandomRoom();
+struct Room GetRandomRoom(struct Room*);
 int CanAddConnectionFrom(struct Room);
 int ConnectionAlreadyExists(struct Room, struct Room);
 void ConnectRoom(struct Room, struct Room);
@@ -39,6 +39,10 @@ int main() {
 	if(!IsGraphFull(rooms)) {
 		printf("Graph is not full!\n");
 	}
+
+	printf("here's a random room: \n");
+	struct Room randRoom = GetRandomRoom(rooms);
+	printf("%s\n", randRoom.name);
 	
 	// Create all connections in graph
 	//while (IsGraphFull() == 0) {
@@ -130,19 +134,19 @@ int IsGraphFull(struct Room* rooms) {
 }
 
 // Adds a random, valid outbound connection from a Room to another Room
-void AddRandomConnection() {
+void AddRandomConnection(struct Room* rooms) {
 	struct Room A; // Maybe a struct, maybe global arrays of ints
 	struct Room B;
 
 	while(1) {
-		A = GetRandomRoom();
+		A = GetRandomRoom(rooms);
 
 		if (CanAddConnectionFrom(A) == 1)
 			break;
 	}
 
 	do {
-		B = GetRandomRoom();
+		B = GetRandomRoom(rooms);
 	}
 	while(CanAddConnectionFrom(B) == 0 || IsSameRoom(A, B) == 1 || ConnectionAlreadyExists(A, B) == 1);
 
@@ -151,9 +155,9 @@ void AddRandomConnection() {
 }
 
 // Returns a random Room, does NOT validate if connections can be added
-struct Room GetRandomRoom() {
-	struct Room A;
-	return A;
+struct Room GetRandomRoom(struct Room* rooms) {
+	int randNum = rand() % 7;
+	return rooms[randNum];
 }
 
 // Returns true if a connection can be added from Room x (< 6 outbound connections), false otherwise

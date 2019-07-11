@@ -9,7 +9,7 @@ struct Room {
 };
 
 void MakeRoomDir(char*);
-void CreateRoom(int*, char*);
+void CreateRoom(struct Room*, int*, char*);
 int IsGraphFull();
 int FileExists(char*);
 void AddRandomConnection();
@@ -25,10 +25,16 @@ int main() {
 	char roomFolder[25];
 	int i;
 	int numRooms = 0;
+	struct Room rooms[7];
 
 	MakeRoomDir(roomFolder);
 	for(i = 0; i < 7; i++) {
-		CreateRoom(&numRooms, roomFolder);
+		CreateRoom(rooms, &numRooms, roomFolder);
+	}
+
+	printf("These are the rooms in the Rooms array:\n");
+	for(i = 0; i < 7; i++) {
+		printf("%s\n", rooms[i].name);
 	}
 	// Create all connections in graph
 	//while (IsGraphFull() == 0) {
@@ -57,7 +63,7 @@ void MakeRoomDir(char* roomFolder) {
 }
 
 // Creates a random room in the room directory folder
-void CreateRoom(int* numRooms, char* roomFolder) {
+void CreateRoom(struct Room* rooms, int* numRooms, char* roomFolder) {
 	// possible room names to select from	
 	char names[10][9] = { 
 		"Dorm", 
@@ -84,12 +90,14 @@ void CreateRoom(int* numRooms, char* roomFolder) {
 	if(!FileExists(filePath)) {
 		FILE *fptr;
 		fptr = fopen(filePath, "w+");
+		strcpy(rooms[*numRooms].name, names[randNum]);
 		(*numRooms)++;
 		printf("Number of rooms is: %d\n", *numRooms);
+
 	}
 	// file exists, so try again recursively
 	else {
-		CreateRoom(numRooms, roomFolder);
+		CreateRoom(rooms, numRooms, roomFolder);
 	}
 }
 

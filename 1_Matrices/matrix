@@ -1,0 +1,351 @@
+#!/bin/bash
+
+# NAME
+#	Error
+# SYNOPSIS
+#	Dump error message and exit
+
+err() {
+	echo $1>&2
+	exit 1
+}
+
+# NAME
+#	getRowCount - gets the row count of input
+# SYNOPSIS
+#	getRowCount input
+#	rowVar=$?
+
+function getRowCount() {
+	rowCount=0
+	while read -r line
+	do
+		rowCount=$(( $rowCount+1 ))
+	done < $1
+	return $rowCount
+}
+
+# NAME
+#	getColCount - gets the column count of input
+# SYNOPSIS
+#	getColCount input
+#	colVar=$?
+
+function getColCount() {
+	colCount=0
+	read -r line < $1
+	for i in $line
+	do
+		colCount=$(( $colCount+1))
+	done
+	return $colCount
+}
+
+# NAME
+# 	dims - prints error message to stderr, nothing to stdout and
+#	return value != 0 if:
+#		Argument count is greater than 1
+#		Argument count is 1 but the file named by argument 1
+#		is not readable
+#	Otherwise, prints "ROW COLS" to stdout, nothing to stderr and
+#	returns 0
+# SYNOPSIS
+#	dims MATRIX
+
+function dims() {
+	# check that there is no more than 1 argument
+	if [ $# -gt 1 ]
+	then
+		err "Dims cannot take more than 1 argument."
+	
+	# check that there are no arguments (thus matrix is piped)
+	elif [ $# -eq 0 ]
+	then
+		datafilepath="datafile$$"
+		cat > $datafilepath
+		getRowCount $datafilepath
+		rowCount=$?
+		getColCount $datafilepath
+		colCount=$?
+		echo "$rowCount $colCount"
+		rm $datafilepath
+
+	# check that the file exists and is readable
+	elif [ -r $1 ]
+	# file exists and is readable
+	then
+		getRowCount $1
+		rowCount=$?
+		getColCount $1
+		colCount=$?
+		echo "$rowCount $colCount"
+	# file is not readable, print error
+	else
+		err "File is not found or is not readable."
+	fi
+}
+
+# NAME
+#	transpose - reflects the elements of the matrix along the main diagonal.
+#	Thus, an MxN matrix will become an NxM matrix and the values along the
+#	main diagonal will remain unchanged.
+# SYNOPSIS
+#	transpose MATRIX
+
+function transpose() {
+	# check that there is no more than 1 argument
+	if [ $# -gt 1 ]
+	then
+		err "Transpopse cannot take more than 1 argument."
+	
+	# check that there are no arguments (thus matrix is piped)
+	elif [ $# -eq 0 ]
+	then
+		tempMtx="tempMtx$$"
+		cat > $tempMtx
+		getColCount $tempMtx
+		colCount=$?
+		# turn columns into rows
+		for i in `eval echo {1..$colCount}`
+		do
+			col=$(cut -f $i $tempMtx | tr '\n' '\t')
+			col=${col%?}
+			printf "%s\n" "$col"
+		done
+		rm $tempMtx
+	# check that the file exists and is readable
+	elif [ -r $1 ]
+	# file exists and is readable
+	then	
+		getColCount $1
+		colCount=$?
+		tempMtx="tempMtx$$"
+		cp $1 $tempMtx		
+		# turn columns into rows
+		for i in `eval echo {1..$colCount}`	
+		do
+			col=$(cut -f $i $tempMtx | tr '\n' '\t')
+			col=${col%?}
+			printf "%s\n" "$col"
+		done	
+		rm $tempMtx
+
+	# file is not readable, print error
+	else
+		err "File is not found or is not readable."
+	fi
+}
+
+# NAME
+#	mean - takes an MxN matrix and returns a 1xN row vector, where the 
+#	first element is the mean of column one, the second element is the
+#	mean of column two, and so on.
+# SYNOPSIS
+# 	mean MATRIX
+
+function mean() {
+	# check that there is no more than 1 argument
+	if [ $# -gt 1 ]
+	then
+		err "Mean cannot take more than 1 argument."
+
+	# check that there are no arguments (thus matrix is piped)
+	elif [ $# -eq 0 ]
+	then
+		tempMtx="tempMtx$$"
+		cat > $tempMtx
+		getColCount $tempMtx
+		colCount=$?
+		getRowCount $tempMtx
+		rowCount=$?
+		resultsMtx="resultsMtx$$"
+		# go through each column and sum up rows to take an average
+		for i in `eval echo {1..$colCount}`
+		do
+			sum=0
+			while read -r line
+			do
+				tempLine="tempLine$$"
+				echo "$line" > $tempLine 
+				colNum=$(cut -f $i $tempLine)
+				sum=$(($sum + $colNum))
+				rm $tempLine
+			done < $tempMtx
+			# rounding formula
+			avg=$(( ($sum + ($rowCount/2)*(($sum>0)*2-1)) /$rowCount  ))
+			echo "$avg" >> $resultsMtx
+		done
+		transpose $resultsMtx
+		rm $resultsMtx
+ 
+
+	# check that the file exists and is readable
+	elif [ -r $1 ]
+	then
+		getColCount $1
+		colCount=$?
+		getRowCount $1
+		rowCount=$?
+		tempMtx="tempMtx$$"
+		resultsMtx="resultsMtx$$"
+		cp $1 $tempMtx	
+		# go through each column and sum up rows to take an average
+		for i in `eval echo {1..$colCount}`
+		do
+			sum=0
+			while read -r line
+			do
+				tempLine="tempLine$$"
+				echo "$line" > $tempLine 
+				colNum=$(cut -f $i $tempLine)
+				sum=$(($sum + $colNum))
+				rm $tempLine
+			done < $1
+			# rounding formula
+			avg=$(( ($sum + ($rowCount/2)*(($sum>0)*2-1)) /$rowCount  ))
+			echo "$avg" >> $resultsMtx
+		done
+		transpose $resultsMtx
+		rm $resultsMtx
+	# file is not readable, print error
+	else
+		err "File is not found or is not readable."
+	fi
+}
+
+# NAME 
+# 	add - takes two MxN matrices and adds them together element-wise
+#	to produce an MxN matrix. Returns an error if the matrices do not
+#	have the same dimensions.
+# SYNOPIS
+# 	add MATRIX_LEFT MATRIX_RIGHT
+
+function add() {
+	# check that there are 2 arguments
+	if [ $# -ne 2 ]
+	then
+		err "Add needs 2 arguments."
+	# check that the files exist and are readable
+	elif [ -r $1 ] && [ -r $2 ]
+	then
+		dims1=$(dims $1)
+		dims2=$(dims $2)
+		# dimensions must be the same to perform addition
+		if [ "$dims1" = "$dims2" ]
+		then
+			getRowCount $1
+			rowCount=$?
+			getColCount $1
+			colCount=$?
+			resultsMtx="resultsMtx$$"
+			rowNum1=1
+			# go through each line of both matrices
+			while read -r line1
+			do
+				rowNum2=1
+				while read -r line2
+				do
+					#check that the lines are the same in order to perform addition
+					if [ $rowNum1 -eq $rowNum2  ]
+					then
+						resultMtx="resultMtx$$"
+						tempLine1="tempLine1$$"
+						tempLine2="tempLine2$$"
+						i=1
+						while [ "$i" -le "$colCount" ]
+						do
+							echo "$line1" > $tempLine1
+							echo "$line2" > $tempLine2
+							num1=$(cut -f $i $tempLine1)
+							num2=$(cut -f $i $tempLine2)
+							sum=$(( $num1 + $num2  ))
+							echo "$sum" >> $resultMtx
+							i=$(( $i+1 ))
+						done
+						transpose $resultMtx
+						rm $resultMtx
+						rm $tempLine1
+						rm $tempLine2
+					fi	
+					rowNum2=$(( $rowNum2+1 ))
+					
+				done < $2
+				rowNum1=$(( $rowNum1+1 ))
+				getColCount $1
+				colCount=$?
+			done < $1
+
+		else
+			err "Dimensions of the matrices must be the same."
+		fi
+	# files are not readable, print error
+	else
+		err "One or both of the files are not found or not readable"	
+	fi
+}
+
+
+
+# NAME
+#	multiply - takes an MxN and NxP matrix and produces an MxP matrix.
+# SYNOPSIS
+#	multiply MATRIX_LEFT MATRIX_RIGHT
+
+function multiply() {
+	# check that there are 2 arguments
+	if [ $# -ne 2 ]
+	then
+		err "Multiply needs 2 arguments."
+	# check that the files exis and are readable
+	elif [ -r $1 ] && [ -r $2 ]
+	then
+		getRowCount $2
+		rowCount=$?
+		getColCount $1
+		colCount=$?
+		# check if matrices dimensions are compatible for multiplication
+		if [ $rowCount -eq $colCount ]
+		then
+			# I chose to transpose the second matrix and go row by row to perform multiplication
+			resultMtx="resultMtx$$"
+			transposedMtx="transposedMtx$$"
+			transpose $2 >> $transposedMtx
+			while read line1 
+			do
+				resultMtx="resultMtx$$"
+				while read line2
+				do
+					tempLine1="tempLine1$$"
+					tempLine2="tempLine2$$"
+					getColCount $1
+					colCount=$?
+					i=1
+					sum=0
+					while [ "$i" -le "$colCount" ]
+					do
+						num1=$(echo "$line1" | cut -f $i)
+						num2=$(echo "$line2" | cut -f $i)
+						sum=$(( $num1*$num2 + $sum ))
+						i=$(( $i+1 ))
+					done
+					getColCount $1
+					colCount=$?
+					echo "$sum" >> $resultMtx
+				done < $transposedMtx
+				# transpose the resultMtx to get the desired output
+				transpose $resultMtx
+				rm $resultMtx
+			done < $1
+			rm $transposedMtx
+		else
+			err "Matrix dimensions are incompatible for matrix multiplication."
+
+		fi
+
+	else
+		err "One or both of the files are not found or not readable."
+	fi
+}
+
+trap "echo 'CTRL+C received, exiting'; exit 1" INT HUP TERM
+$1 "${@:2}"

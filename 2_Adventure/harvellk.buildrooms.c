@@ -35,6 +35,10 @@ int main() {
 	for(i = 0; i < 7; i++) {
 		printf("Name: %s, Type: %s, # of Conns: %d\n", rooms[i].name, rooms[i].type, rooms[i].numConnections);
 	}
+
+	if(!IsGraphFull(rooms)) {
+		printf("Graph is not full!\n");
+	}
 	
 	// Create all connections in graph
 	//while (IsGraphFull() == 0) {
@@ -44,6 +48,7 @@ int main() {
 	return 0;
 }
 
+// Checks to see if a number is in an array of specified length
 int numInArr(int num, int* arr, int length) {
 	int i;
 	for(i = 0; i < length; i++) {
@@ -54,7 +59,7 @@ int numInArr(int num, int* arr, int length) {
 	return 0;
 }
 
-// Creates a random room in the room directory folder
+// Creates and initializes random rooms in a Room struct array
 void CreateRooms(struct Room* rooms) {
 	// array to store random numbers
 	int randNumsArr[7];
@@ -109,16 +114,19 @@ void CreateRooms(struct Room* rooms) {
 		// Set number of connections of all rooms to 0
 		rooms[i].numConnections = 0;
 	}
-
-	
-
-
 }
 
 
 // Returns true if all rooms have 3 to 6 outbound connections, false otherwise
-int IsGraphFull() {
-	return 0;
+int IsGraphFull(struct Room* rooms) {
+	int i;
+	int isFull = 1;
+	for(i = 0; i < 7; i++) {
+		if(rooms[i].numConnections < 3) {
+			isFull = 0;
+		}
+	}
+	return isFull;
 }
 
 // Adds a random, valid outbound connection from a Room to another Room

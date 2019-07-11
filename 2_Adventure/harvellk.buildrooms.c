@@ -8,10 +8,9 @@ struct Room {
 	char name[50];
 };
 
-void MakeRoomDir(char*);
-void CreateRoom(struct Room*, int*, char*);
+int numInArr(int, int*);
+void CreateRooms(struct Room*);
 int IsGraphFull();
-int FileExists(char*);
 void AddRandomConnection();
 struct Room GetRandomRoom();
 int CanAddConnectionFrom(struct Room);
@@ -24,46 +23,38 @@ int main() {
 	srand(time(0));
 	char roomFolder[25];
 	int i;
-	int numRooms = 0;
 	struct Room rooms[7];
 
-	MakeRoomDir(roomFolder);
-	for(i = 0; i < 7; i++) {
-		CreateRoom(rooms, &numRooms, roomFolder);
-	}
+	CreateRooms(rooms);
+	
 
-	printf("These are the rooms in the Rooms array:\n");
-	for(i = 0; i < 7; i++) {
-		printf("%s\n", rooms[i].name);
-	}
+	//printf("These are the rooms in the Rooms array:\n");
+	//for(i = 0; i < 7; i++) {
+	//	printf("%s\n", rooms[i].name);
+	//}
+	
 	// Create all connections in graph
 	//while (IsGraphFull() == 0) {
 	//	AddRandomConnection();
 	//}
 
-
-
-
 	return 0;
 }
 
-// Makes the rooms directory
-void MakeRoomDir(char* roomFolder) {
-	// make the rooms folder
-	pid_t pidInt = getpid();
-	// pid needs to be converted into a string in order to combine with roomFolder name
-	// my pid's are 5 digits, but I made the string 10 characters just in case
-	char pidStr[10];
-	sprintf(pidStr, "%d", pidInt);
-	strcpy(roomFolder, "harvellk.rooms.");
-	strcat(roomFolder, pidStr);
-	printf("Process ID: %d\n", pidInt);
-	mkdir(roomFolder);
-        printf("%s created\n", roomFolder);	
+int numInArr(int num, int* arr) {
+	int i;
+	for(i = 0; i < 7; i++) {
+		if(arr[i] == num) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 // Creates a random room in the room directory folder
-void CreateRoom(struct Room* rooms, int* numRooms, char* roomFolder) {
+void CreateRooms(struct Room* rooms) {
+	// array to store random numbers
+	int randNumsArr[7];
 	// possible room names to select from	
 	char names[10][9] = { 
 		"Dorm", 
@@ -77,38 +68,24 @@ void CreateRoom(struct Room* rooms, int* numRooms, char* roomFolder) {
 		"Armory",
 		"Dungeon"
 	};
-	// pick a number between 0 and 9
-	int randNum = rand() % 10;
-	printf("random num is: %d\n", randNum);
 
-	// create the file path for the room file
-	char filePath[35];
-	sprintf(filePath, "./%s/%s", roomFolder, names[randNum]); 
-	printf("filePath is: %s\n", filePath);
-	
-	// check to see that the file exists before creating (in order to avoid duplicate rooms)
-	if(!FileExists(filePath)) {
-		FILE *fptr;
-		fptr = fopen(filePath, "w+");
-		strcpy(rooms[*numRooms].name, names[randNum]);
-		(*numRooms)++;
-		printf("Number of rooms is: %d\n", *numRooms);
+	int numCount = 0;
+	while(numCount < 7) {
+		// pick a number between 0 and 9
+		int randNum = rand() % 10;
+		printf("random num is: %d\n", randNum);
+		if(!numInArr(randNum, randNumsArr)) {
+			randNumsArr[numCount] = randNum;
+			numCount++;
+		}
+	}
 
+	int i = 0;
+	printf("random nums are: ");
+	for(i = 0; i < 7; i++) {
+		printf("%d, ", randNumsArr[i]);
 	}
-	// file exists, so try again recursively
-	else {
-		CreateRoom(rooms, numRooms, roomFolder);
-	}
-}
-
-// Checks to see if a file exists (something that will be done a lot and deserves its own function)
-int FileExists(char* filePath) {
-	FILE* file;
-	if (file = fopen(filePath, "r")) {
-		fclose(file);
-		return 1;
-	}
-	return 0;
+	printf("\n");
 }
 
 

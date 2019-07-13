@@ -13,13 +13,13 @@ struct Room {
 
 int numInArr(int, int*, int);
 void CreateRooms(struct Room*);
-int IsGraphFull();
+int IsGraphFull(struct Room*);
 void AddRandomConnection();
-struct Room GetRandomRoom(struct Room*);
-int CanAddConnectionFrom(struct Room);
-int ConnectionAlreadyExists(struct Room, struct Room);
-void ConnectRoom(struct Room, struct Room);
-int IsSameRoom(struct Room, struct Room);
+struct Room* GetRandomRoom(struct Room*);
+int CanAddConnectionFrom(struct Room*);
+int ConnectionAlreadyExists(struct Room*, struct Room*);
+void ConnectRoom(struct Room*, struct Room*);
+int IsSameRoom(struct Room*, struct Room*);
 
 int main() {
 	// seed for random
@@ -31,24 +31,32 @@ int main() {
 	CreateRooms(rooms);
 	
 
+
+	printf("here's a random room: \n");
+	struct Room* randRoom = GetRandomRoom(rooms);
+	printf("%s\n", randRoom->name);
+	
+	// Create all connections in graph
+	while (IsGraphFull(rooms) == 0) {
+		AddRandomConnection(rooms);
+	}
+	
+
 	printf("These are the rooms in the Rooms array:\n");
 	for(i = 0; i < 7; i++) {
 		printf("Name: %s, Type: %s, # of Conns: %d\n", rooms[i].name, rooms[i].type, rooms[i].numConnections);
+		printf("Connections: ");
+		int j;
+		for(j = 0; j < 6; j++) {
+			printf("%s, ", rooms[i].connections[j]);
+		}
+		printf("\n");
 	}
 
 	if(!IsGraphFull(rooms)) {
 		printf("Graph is not full!\n");
 	}
-
-	printf("here's a random room: \n");
-	struct Room randRoom = GetRandomRoom(rooms);
-	printf("%s\n", randRoom.name);
 	
-	// Create all connections in graph
-	//while (IsGraphFull() == 0) {
-	//	AddRandomConnection();
-	//}
-
 	return 0;
 }
 
@@ -117,6 +125,11 @@ void CreateRooms(struct Room* rooms) {
 		}
 		// Set number of connections of all rooms to 0
 		rooms[i].numConnections = 0;
+
+		int j;
+		for(j = 0; j < 6; j++) {
+			strcpy(rooms[i].connections[j], "");
+		}
 	}
 }
 
@@ -135,12 +148,12 @@ int IsGraphFull(struct Room* rooms) {
 
 // Adds a random, valid outbound connection from a Room to another Room
 void AddRandomConnection(struct Room* rooms) {
-	struct Room A; // Maybe a struct, maybe global arrays of ints
-	struct Room B;
+	struct Room* A; // Maybe a struct, maybe global arrays of ints
+	struct Room* B;
 
 	while(1) {
 		A = GetRandomRoom(rooms);
-
+		
 		if (CanAddConnectionFrom(A) == 1)
 			break;
 	}
@@ -150,32 +163,47 @@ void AddRandomConnection(struct Room* rooms) {
 	}
 	while(CanAddConnectionFrom(B) == 0 || IsSameRoom(A, B) == 1 || ConnectionAlreadyExists(A, B) == 1);
 
-	ConnectRoom(A, B); // TODO: Add this connection to the real variables
-	ConnectRoom(B, A); // because this A and B will be destroyed when this function terminates
+	ConnectRoom(A, B); 
+	ConnectRoom(B, A); 
 }
 
 // Returns a random Room, does NOT validate if connections can be added
-struct Room GetRandomRoom(struct Room* rooms) {
+struct Room* GetRandomRoom(struct Room* rooms) {
 	int randNum = rand() % 7;
-	return rooms[randNum];
+	return &rooms[randNum];
 }
 
 // Returns true if a connection can be added from Room x (< 6 outbound connections), false otherwise
-int CanAddConnectionFrom(struct Room x) {
-	return 0;
+int CanAddConnectionFrom(struct Room* x) {
+	int canAdd = 0;
+	if(x->numConnections < 6)
+		canAdd = 1;
+	return canAdd;
 }
 
 // Connects Rooms x and y together, dows not check if this connection is valid
-void ConnectRoom(struct Room x, struct Room y) {
-
+void ConnectRoom(struct Room* x, struct Room* y) {
+	int numCons = x->numConnections;
+	strcpy(x->connections[numCons], y->name);
+	x->numConnections++;
 }
 
 // Returns true if a connection from Room x to Room y already exists, false otherwise
-int ConnectionAlreadyExists(struct Room x, struct Room y) {
-	return 0;
+int ConnectionAlreadyExists(struct Room* x, struct Room* y) {
+	int conExists = 0;
+	int i;
+	// loop through connections array of x looking for the name of y
+	for(i = 0; i < 6; i++) {
+		if(strcmp(x->connections[i], y->name) == 0)
+			conExists = 1;
+	}
+	return conExists;
 }
 
 // Returns true if Rooms x and y are the same Room, false otherwise
-int IsSameRoom(struct Room x, struct Room y) {
-	return 0;
+int IsSameRoom(struct Room* x, struct Room* y) {
+	int isSame = 0;
+	if(strcmp(x->name, y->name) == 0)
+		isSame = 1;
+	return isSame;
 }

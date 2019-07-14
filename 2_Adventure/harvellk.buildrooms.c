@@ -3,14 +3,18 @@
 #include <sys/types.h>
 #include <time.h>
 
+#define NUM_ROOMS 7
+#define MAX_CONNECTIONS 6
+#define MAX_NAME_SIZE 9
 
 struct Room {
-	char name[9];
+	char name[MAX_NAME_SIZE];
 	char type[11];
-	char connections[6][9];
+	char connections[MAX_CONNECTIONS][MAX_NAME_SIZE];
 	int numConnections;
 };
 
+void MakeRoomDir(struct Room*, char *);
 int numInArr(int, int*, int);
 void CreateRooms(struct Room*);
 int IsGraphFull(struct Room*);
@@ -26,38 +30,51 @@ int main() {
 	srand(time(0));
 	char roomFolder[25];
 	int i;
-	struct Room rooms[7];
+	struct Room rooms[NUM_ROOMS];
 
+	// Create Room struct array first
 	CreateRooms(rooms);
-	
-
-
-	printf("here's a random room: \n");
-	struct Room* randRoom = GetRandomRoom(rooms);
-	printf("%s\n", randRoom->name);
-	
 	// Create all connections in graph
 	while (IsGraphFull(rooms) == 0) {
 		AddRandomConnection(rooms);
 	}
-	
-
-	printf("These are the rooms in the Rooms array:\n");
-	for(i = 0; i < 7; i++) {
-		printf("Name: %s, Type: %s, # of Conns: %d\n", rooms[i].name, rooms[i].type, rooms[i].numConnections);
-		printf("Connections: ");
-		int j;
-		for(j = 0; j < 6; j++) {
-			printf("%s, ", rooms[i].connections[j]);
-		}
-		printf("\n");
-	}
-
-	if(!IsGraphFull(rooms)) {
-		printf("Graph is not full!\n");
-	}
+	// Then create folder/files with Room struct array info
+	MakeRoomDir(rooms, roomFolder);
 	
 	return 0;
+}
+
+void MakeRoomDir(struct Room* rooms , char* roomFolder) {
+	
+	// make the rooms folder
+	pid_t pidInt = getpid();
+	// pid needs to be converted into a string in order to combine with roomFolder name
+	// my pid's are 5 digits, but I made the string 10 characters just in case
+	char pidStr[10];
+	sprintf(pidStr, "%d", pidInt);
+	strcpy(roomFolder, "harvellk.rooms.");
+	strcat(roomFolder, pidStr);
+	mkdir(roomFolder, 0700);
+
+	// Create room files in inside rooms folder
+	int i;
+	for(i = 0; i < NUM_ROOMS; i++) {
+		// create the file path for the room file
+		char filePath[35];
+		sprintf(filePath, "./%s/%s", roomFolder, rooms[i].name);
+		FILE *fptr;
+		fptr = fopen(filePath, "w+");
+		// populate room file with room struct info
+		// add name
+		fprintf(fptr, "ROOM NAME: %s\n", rooms[i].name);
+		// add connections
+		int j;
+		for (j = 0; j < rooms[i].numConnections; j++) {
+			fprintf(fptr, "CONNECTION %d: %s\n", j+1, rooms[i].connections[j]);
+		}
+		fprintf(fptr, "ROOM TYPE: %s", rooms[i].type);
+		fclose(fptr);
+	}
 }
 
 // Checks to see if a number is in an array of specified length
@@ -74,9 +91,9 @@ int numInArr(int num, int* arr, int length) {
 // Creates and initializes random rooms in a Room struct array
 void CreateRooms(struct Room* rooms) {
 	// array to store random numbers
-	int randNumsArr[7];
+	int randNumsArr[NUM_ROOMS];
 	// possible room names to select from	
-	char names[10][9] = { 
+	char names[10][MAX_NAME_SIZE] = { 
 		"Dorm", 
 		"Kitchen", 
 		"Bedroom", 
@@ -91,27 +108,22 @@ void CreateRooms(struct Room* rooms) {
 
 	// Create an array of random numbers
 	int numCount = 0;
-	while(numCount < 7) {
+	while(numCount < NUM_ROOMS) {
 		// pick a number between 0 and 9
 		int randNum = rand() % 10;
 		// Check to make sure the chosen random number isn't already in the array. 
 		// If not, add it to the random number array
-		if(!numInArr(randNum, randNumsArr, 7)) {
+		if(!numInArr(randNum, randNumsArr, NUM_ROOMS)) {
 			randNumsArr[numCount] = randNum;
 			numCount++;
 		}
 	}
 
-	int i = 0;
-	printf("random nums are: ");
-	for(i = 0; i < 7; i++) {
-		printf("%d, ", randNumsArr[i]);
-	}
-	printf("\n");
 
 	// Based on the random numbers, use the names array to put names into the Rooms array.
 	// Also use this loop to add room types and set numConnections to 0
-	for(i = 0; i < 7; i++) {
+	int i = 0;
+	for(i = 0; i < NUM_ROOMS; i++) {
 		// Name assignment
 		int num = randNumsArr[i];
 		strcpy(rooms[i].name, names[num]);
@@ -127,7 +139,7 @@ void CreateRooms(struct Room* rooms) {
 		rooms[i].numConnections = 0;
 
 		int j;
-		for(j = 0; j < 6; j++) {
+		for(j = 0; j < MAX_CONNECTIONS; j++) {
 			strcpy(rooms[i].connections[j], "");
 		}
 	}
@@ -138,7 +150,7 @@ void CreateRooms(struct Room* rooms) {
 int IsGraphFull(struct Room* rooms) {
 	int i;
 	int isFull = 1;
-	for(i = 0; i < 7; i++) {
+	for(i = 0; i < NUM_ROOMS; i++) {
 		if(rooms[i].numConnections < 3) {
 			isFull = 0;
 		}
@@ -169,14 +181,14 @@ void AddRandomConnection(struct Room* rooms) {
 
 // Returns a random Room, does NOT validate if connections can be added
 struct Room* GetRandomRoom(struct Room* rooms) {
-	int randNum = rand() % 7;
+	int randNum = rand() % NUM_ROOMS;
 	return &rooms[randNum];
 }
 
 // Returns true if a connection can be added from Room x (< 6 outbound connections), false otherwise
 int CanAddConnectionFrom(struct Room* x) {
 	int canAdd = 0;
-	if(x->numConnections < 6)
+	if(x->numConnections < MAX_CONNECTIONS)
 		canAdd = 1;
 	return canAdd;
 }
@@ -185,7 +197,7 @@ int CanAddConnectionFrom(struct Room* x) {
 void ConnectRoom(struct Room* x, struct Room* y) {
 	int numCons = x->numConnections;
 	strcpy(x->connections[numCons], y->name);
-	x->numConnections++;
+	(x->numConnections)++;
 }
 
 // Returns true if a connection from Room x to Room y already exists, false otherwise
@@ -193,7 +205,7 @@ int ConnectionAlreadyExists(struct Room* x, struct Room* y) {
 	int conExists = 0;
 	int i;
 	// loop through connections array of x looking for the name of y
-	for(i = 0; i < 6; i++) {
+	for(i = 0; i < MAX_CONNECTIONS; i++) {
 		if(strcmp(x->connections[i], y->name) == 0)
 			conExists = 1;
 	}

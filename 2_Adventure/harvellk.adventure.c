@@ -116,11 +116,6 @@ void ReadFiles(char* dirStr, struct Room* rooms) {
 				strcat(filePath, fileInDir->d_name);
 				// send to FileToStruct function to convert file into Room struct
 				FileToStruct(filePath, rooms, roomNum);
-int i;
-				printf("Current connections for %s\n", rooms[roomNum].name);
-				for(i = 0; i < rooms[roomNum].numConnections; i++) {
-					printf("%s\n", rooms[roomNum].connections[i]);
-				}
 				roomNum++;
 			}
 		}
@@ -142,9 +137,9 @@ void FileToStruct(char* filePath, struct Room* rooms, int roomNum) {
 			if(strstr(line, "ROOM NAME")) {
 				//fputs(line, stdout);
 				// clear out the rooms name
-				memcpy(rooms[roomNum].name, "\0", MAX_NAME_SIZE);
+				memset(rooms[roomNum].name, 0, MAX_NAME_SIZE);
 				// transfer line contents after "ROOM NAME: " (11 characters) into name var
-				memcpy(rooms[roomNum].name, &line[11], 8);
+				memcpy(rooms[roomNum].name, &line[11], MAX_NAME_SIZE);
 				// strip the '\n' at the end of the line
 				rooms[roomNum].name[strcspn(rooms[roomNum].name, "\n")] = 0;
 				// terminate the string with a null terminator just in case
@@ -155,29 +150,23 @@ void FileToStruct(char* filePath, struct Room* rooms, int roomNum) {
 				// placeholder for connections array to enhance readability
 				int temp = rooms[roomNum].numConnections;
 				// clear out the connection name
-				//memcpy(rooms[roomNum].connections[temp], "\0", MAX_NAME_SIZE);
+				memset(rooms[roomNum].connections[temp], 0, MAX_NAME_SIZE);
 				// transfer line contents after "CONNECTION #: " (14 characters) into connections
-				memcpy(rooms[roomNum].connections[temp], &line[14], 8);
+				memcpy(rooms[roomNum].connections[temp], &line[14], MAX_NAME_SIZE);
 				// strip the '\n' at the end of the line
 				rooms[roomNum].connections[temp][strcspn(rooms[roomNum].connections[temp], "\n")] = 0;
 				// terminate the string with a null terminator just in case
 				rooms[roomNum].connections[temp][MAX_NAME_SIZE] = '\0';
 				// increment the numConnections variable
 				rooms[roomNum].numConnections++;
-				int i;
-				printf("Current connections for %s\n", rooms[roomNum].name);
-				for(i = 0; i < rooms[roomNum].numConnections; i++) {
-					printf("%s\n", rooms[roomNum].connections[i]);
-				}
 			}
 			// check if the line is a ROOM TYPE line
 			else if(strstr(line, "ROOM TYPE")) {
 				// clear out the room type name
-				memcpy(rooms[roomNum].type, "\0", 11);
+				memset(rooms[roomNum].type, 0, 11);
 				// transfer line contents after "ROOM TYPE: " (11 characters) into type
 				memcpy(rooms[roomNum].type, &line[11], 11);
-				// terminate the string with a null terminator just in case
-				rooms[roomNum].type[11] = '\0';
+				rooms[roomNum].type[10] = '\0';
 			}
 		}
 		fclose(fptr);

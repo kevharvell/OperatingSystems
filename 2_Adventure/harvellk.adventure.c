@@ -17,13 +17,18 @@ struct Room {
 	int numConnections;
 };
 
+int IsEndRoom(struct Room*);
+struct Room FindStartRoom(struct Room*);
 void DisplayMenu();
 void GetNewestDir(char*);
 void ReadFiles(char*, struct Room*);
 void FileToStruct(char*, struct Room*, int);
+void Menu(struct Room*);
 
 int main() {
 	struct Room rooms[NUM_ROOMS];
+	int stepsTaken = 0;
+	struct Room path[100];
 	// set all Rooms numConnections to 0
 	int i;
 	for(i = 0; i < NUM_ROOMS; i++) {
@@ -48,7 +53,55 @@ int main() {
 		printf("Room Type:\n%s\n", rooms[i].type);
 	}
 
+	struct Room currentRoom = FindStartRoom(rooms);
+	printf("Start room is: %s\n", currentRoom.name);
+	for(i = 0; i < NUM_ROOMS; i++) {
+		if(IsEndRoom(&rooms[i])) {
+			printf("End room is: %s\n", rooms[i].name);
+		}
+	}
+
+	//do {
+		Menu(&currentRoom);
+
+//	} while(/*!*/IsEndRoom(&currentRoom));
+
 	return 0;
+}
+
+void Menu(struct Room* room) {
+	printf("CURRENT LOCATION: %s\n", room->name);
+	printf("POSSIBLE CONNECTIONS: ");
+	int i;
+	for(i = 0; i < room->numConnections; i++) {
+		if(i == (room->numConnections - 1))
+			printf("%s.\n", room->connections[i]);
+		else
+			printf("%s, ", room->connections[i]);
+	}
+	printf("WHERE TO? >");
+
+
+}
+
+// IsEndRoom is a bool function that checks to see if a room is the end room
+int IsEndRoom(struct Room* room) {
+	int isEnd = 0;
+	if(strcmp(room->type, "END_ROOM") == 0) {
+		isEnd = 1;
+	}
+	return isEnd;
+}
+
+
+// FindStartRoom loops through the rooms array to find the start room
+struct Room FindStartRoom(struct Room* rooms) {
+	int i;
+	for(i = 0; i < NUM_ROOMS; i++) {
+		if(strcmp(rooms[i].type, "START_ROOM") == 0) {
+			return rooms[i];
+		}
+	}
 }
 
 void DisplayMenu() {

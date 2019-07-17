@@ -18,13 +18,14 @@ struct Room {
 };
 
 int IsEndRoom(struct Room*);
-struct Room FindStartRoom(struct Room*);
+struct Room* FindStartRoom(struct Room*);
 void DisplayMenu();
 void GetNewestDir(char*);
 void ReadFiles(char*, struct Room*);
 void FileToStruct(char*, struct Room*, int);
-void Menu(struct Room*, struct Room*);
-int IsRoom(char*, struct Room*);
+struct Room* Menu(struct Room*, struct Room*);
+int IsConnection(char*, struct Room*);
+struct Room* FindRoom(char*, struct Room*);
 
 int main() {
 	struct Room rooms[NUM_ROOMS];
@@ -42,48 +43,43 @@ int main() {
 	ReadFiles(newestDirName, rooms);
 	
 	
-	printf("Rooms in room struct array:\n");
-	for(i = 0; i < NUM_ROOMS; i++) {
-		printf("\n%s\n", rooms[i].name);
-		int j;
-		printf("Number of connections: %d\n", rooms[i].numConnections);
-		printf("Connections:\n");
-		for(j = 0; j < 6; j++) {
-			printf("Connection %d: %s\n", j+1, rooms[i].connections[j]);
-		}
-		printf("Room Type:\n%s\n", rooms[i].type);
-	}
 
-	struct Room currentRoom = FindStartRoom(rooms);
-	printf("Start room is: %s\n", currentRoom.name);
-	for(i = 0; i < NUM_ROOMS; i++) {
-		if(IsEndRoom(&rooms[i])) {
-			printf("End room is: %s\n", rooms[i].name);
-		}
-	}
+	struct Room* currentRoom = FindStartRoom(rooms);
 
-	//do {
-		Menu(&currentRoom, rooms);
+	do {
+		currentRoom = Menu(currentRoom, rooms);
 
-//	} while(/*!*/IsEndRoom(&currentRoom));
+	} while(!IsEndRoom(currentRoom));
 
 	return 0;
 }
 
-// Checks to see if a given string is a room name in rooms struct array
-int IsRoom(char* str, struct Room* room) {
-	int isRoom = 0;
+// Checks to see if a given string is a room name in room's connections
+int IsConnection(char* str, struct Room* room) {
+	int isConnection = 0;
 	int i;
 	for(i = 0; i < room->numConnections; i++) {
 		if(strcmp(str, room->connections[i]) == 0) {
-			isRoom = 1;
+			isConnection = 1;
 		}
 	}
-	return isRoom;
+	return isConnection;
+}
+
+// Finds a room in array of rooms
+struct Room* FindRoom(char* room, struct Room* rooms) {
+	struct Room* newRoom = NULL;
+	int i;
+	for(i = 0; i < NUM_ROOMS; i++) {
+		if(strcmp(room, rooms[i].name) == 0) {
+			newRoom = &rooms[i];
+		}
+	}
+	return newRoom;
 }
 
 // Displays the menu
-void Menu(struct Room* room, struct Room* rooms) {
+struct Room* Menu(struct Room* room, struct Room* rooms) {
 	printf("CURRENT LOCATION: %s\n", room->name);
 	printf("POSSIBLE CONNECTIONS: ");
 	int i;
@@ -102,12 +98,13 @@ void Menu(struct Room* room, struct Room* rooms) {
 	characters = getline(&buffer, &buffsize, stdin);
 	// strip the newline character from input buffer so a match can be made to room names
 	buffer[characters - 1] = '\0';
-	if(IsRoom(buffer, room)) {
-		printf("%s is a room\n", buffer);
+	if(IsConnection(buffer, room)) {
+		room = FindRoom(buffer, rooms);
+		printf("New room is %s\n", room->name);
+		return room;
 	}
 	else {
 		printf("\nHUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n\n");
-		Menu(room, rooms);
 	}
 	free(buffer);
 }
@@ -123,11 +120,11 @@ int IsEndRoom(struct Room* room) {
 
 
 // FindStartRoom loops through the rooms array to find the start room
-struct Room FindStartRoom(struct Room* rooms) {
+struct Room* FindStartRoom(struct Room* rooms) {
 	int i;
 	for(i = 0; i < NUM_ROOMS; i++) {
 		if(strcmp(rooms[i].type, "START_ROOM") == 0) {
-			return rooms[i];
+			return &rooms[i];
 		}
 	}
 }

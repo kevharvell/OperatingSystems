@@ -23,7 +23,8 @@ void DisplayMenu();
 void GetNewestDir(char*);
 void ReadFiles(char*, struct Room*);
 void FileToStruct(char*, struct Room*, int);
-void Menu(struct Room*);
+void Menu(struct Room*, struct Room*);
+int IsRoom(char*, struct Room*);
 
 int main() {
 	struct Room rooms[NUM_ROOMS];
@@ -62,14 +63,27 @@ int main() {
 	}
 
 	//do {
-		Menu(&currentRoom);
+		Menu(&currentRoom, rooms);
 
 //	} while(/*!*/IsEndRoom(&currentRoom));
 
 	return 0;
 }
 
-void Menu(struct Room* room) {
+// Checks to see if a given string is a room name in rooms struct array
+int IsRoom(char* str, struct Room* room) {
+	int isRoom = 0;
+	int i;
+	for(i = 0; i < room->numConnections; i++) {
+		if(strcmp(str, room->connections[i]) == 0) {
+			isRoom = 1;
+		}
+	}
+	return isRoom;
+}
+
+// Displays the menu
+void Menu(struct Room* room, struct Room* rooms) {
 	printf("CURRENT LOCATION: %s\n", room->name);
 	printf("POSSIBLE CONNECTIONS: ");
 	int i;
@@ -80,8 +94,22 @@ void Menu(struct Room* room) {
 			printf("%s, ", room->connections[i]);
 	}
 	printf("WHERE TO? >");
+	char* buffer;
+	size_t buffsize = 10;
+	size_t characters;
 
-
+	buffer = (char*)malloc(buffsize * sizeof(char));
+	characters = getline(&buffer, &buffsize, stdin);
+	// strip the newline character from input buffer so a match can be made to room names
+	buffer[characters - 1] = '\0';
+	if(IsRoom(buffer, room)) {
+		printf("%s is a room\n", buffer);
+	}
+	else {
+		printf("\nHUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n\n");
+		Menu(room, rooms);
+	}
+	free(buffer);
 }
 
 // IsEndRoom is a bool function that checks to see if a room is the end room

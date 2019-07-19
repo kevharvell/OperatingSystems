@@ -35,16 +35,14 @@ int main() {
 
 	t = time(NULL);
 	tmp = localtime(&t);
-	if(tmp == NULL) {
-		perror("localtime");
-		exit(EXIT_FAILURE);
-	}
 	// 1:03pm, Tuesday, September 13, 2016
-	if(strftime(outstr, sizeof(outstr), "%l:%M%P, %A, %B %d, %Y", tmp) == 0) {
-		fprintf(stderr, "strftime returned 0");
-		exit(EXIT_FAILURE);
-	}
+	strftime(outstr, sizeof(outstr), "%l:%M%P, %A, %B %d, %Y", tmp); 
 	printf("Result string is %s\n", outstr);
+	
+	// write time to file
+	FILE *fptr;
+	fptr = fopen("currentTime.txt", "w+");
+	fprintf(fptr, outstr);
 	exit(EXIT_SUCCESS);
 
 	struct Room rooms[NUM_ROOMS];

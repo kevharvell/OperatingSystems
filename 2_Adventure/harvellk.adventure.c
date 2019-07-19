@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
 
 #define NUM_ROOMS 7
 #define MAX_CONNECTIONS 6
@@ -27,6 +28,25 @@ int IsConnection(char*, struct Room*);
 struct Room* FindRoom(char*, struct Room*);
 
 int main() {
+	// time experimenting
+	char outstr[200];
+	time_t t;
+	struct tm *tmp;
+
+	t = time(NULL);
+	tmp = localtime(&t);
+	if(tmp == NULL) {
+		perror("localtime");
+		exit(EXIT_FAILURE);
+	}
+	// 1:03pm, Tuesday, September 13, 2016
+	if(strftime(outstr, sizeof(outstr), "%l:%M%P, %A, %B %d, %Y", tmp) == 0) {
+		fprintf(stderr, "strftime returned 0");
+		exit(EXIT_FAILURE);
+	}
+	printf("Result string is %s\n", outstr);
+	exit(EXIT_SUCCESS);
+
 	struct Room rooms[NUM_ROOMS];
 	int stepsTaken = 0;
 	char* path[100];

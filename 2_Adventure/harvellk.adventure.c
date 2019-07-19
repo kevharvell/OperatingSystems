@@ -19,7 +19,6 @@ struct Room {
 
 int IsEndRoom(struct Room*);
 struct Room* FindStartRoom(struct Room*);
-void DisplayMenu();
 void GetNewestDir(char*);
 void ReadFiles(char*, struct Room*);
 void FileToStruct(char*, struct Room*, int);
@@ -38,7 +37,6 @@ int main() {
 	}
 
 	char newestDirName[256]; // Holds the name of the newest dir that contains prefix
-	DisplayMenu();
 	GetNewestDir(newestDirName);
 	ReadFiles(newestDirName, rooms);
 	
@@ -47,10 +45,15 @@ int main() {
 	struct Room* currentRoom = FindStartRoom(rooms);
 
 	do {
-		currentRoom = Menu(currentRoom, rooms);
+		struct Room* tempRoom = NULL;
+		tempRoom = Menu(currentRoom, rooms);
+		if(tempRoom) {
+			currentRoom = tempRoom;
+		}
 
 	} while(!IsEndRoom(currentRoom));
 
+	printf("\nYOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
 	return 0;
 }
 
@@ -80,7 +83,7 @@ struct Room* FindRoom(char* room, struct Room* rooms) {
 
 // Displays the menu
 struct Room* Menu(struct Room* room, struct Room* rooms) {
-	printf("CURRENT LOCATION: %s\n", room->name);
+	printf("\nCURRENT LOCATION: %s\n", room->name);
 	printf("POSSIBLE CONNECTIONS: ");
 	int i;
 	for(i = 0; i < room->numConnections; i++) {
@@ -101,12 +104,13 @@ struct Room* Menu(struct Room* room, struct Room* rooms) {
 	if(IsConnection(buffer, room)) {
 		room = FindRoom(buffer, rooms);
 		printf("New room is %s\n", room->name);
-		return room;
 	}
 	else {
-		printf("\nHUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n\n");
+		printf("\nHUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n");
 	}
+	
 	free(buffer);
+	return room;
 }
 
 // IsEndRoom is a bool function that checks to see if a room is the end room
@@ -127,12 +131,6 @@ struct Room* FindStartRoom(struct Room* rooms) {
 			return &rooms[i];
 		}
 	}
-}
-
-void DisplayMenu() {
-	printf("CURRENT LOCATION: %s\n", "TBD");
-	printf("POSSIBLE CONNECTIONS: \n");
-	printf("WHERE TO? >");
 }
 
 void GetNewestDir(char* newestDirName) {
@@ -185,8 +183,6 @@ void ReadFiles(char* dirStr, struct Room* rooms) {
 			// make sure the file isn't the "." or ".." directories
 			if((strcmp(fileInDir->d_name, ".") != 0) && strcmp(fileInDir->d_name, "..") != 0)
 			{
-
-				printf("%s\n", fileInDir->d_name);
 				// create a file path string to open the file and process contents
 				char filePath[35];
 				strcpy(filePath, dirStr);

@@ -22,14 +22,14 @@ struct Room* FindStartRoom(struct Room*);
 void GetNewestDir(char*);
 void ReadFiles(char*, struct Room*);
 void FileToStruct(char*, struct Room*, int);
-struct Room* Menu(struct Room*, struct Room*);
+struct Room* Menu(struct Room*, struct Room*, int*, char**);
 int IsConnection(char*, struct Room*);
 struct Room* FindRoom(char*, struct Room*);
 
 int main() {
 	struct Room rooms[NUM_ROOMS];
 	int stepsTaken = 0;
-	struct Room path[100];
+	char* path[100];
 	// set all Rooms numConnections to 0
 	int i;
 	for(i = 0; i < NUM_ROOMS; i++) {
@@ -40,20 +40,20 @@ int main() {
 	GetNewestDir(newestDirName);
 	ReadFiles(newestDirName, rooms);
 	
-	
-
+	// find the start room and set it to the current room
 	struct Room* currentRoom = FindStartRoom(rooms);
-
+	// play the game by presenting the menu until end room is reached
 	do {
-		struct Room* tempRoom = NULL;
-		tempRoom = Menu(currentRoom, rooms);
-		if(tempRoom) {
-			currentRoom = tempRoom;
-		}
+		currentRoom = Menu(currentRoom, rooms, &stepsTaken, path);
 
 	} while(!IsEndRoom(currentRoom));
-
+	// end room has been reached, player wins
 	printf("\nYOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
+	printf("YOU TOOK %d STEPS. YOUR PATH TO VICTORY WAS:\n", stepsTaken);
+	for(i = 0; i < (stepsTaken); i++) {
+			printf("%s\n", path[i]);
+	}
+	
 	return 0;
 }
 
@@ -73,6 +73,7 @@ int IsConnection(char* str, struct Room* room) {
 struct Room* FindRoom(char* room, struct Room* rooms) {
 	struct Room* newRoom = NULL;
 	int i;
+	// loop through all rooms checking to see if room name exists
 	for(i = 0; i < NUM_ROOMS; i++) {
 		if(strcmp(room, rooms[i].name) == 0) {
 			newRoom = &rooms[i];
@@ -82,16 +83,18 @@ struct Room* FindRoom(char* room, struct Room* rooms) {
 }
 
 // Displays the menu
-struct Room* Menu(struct Room* room, struct Room* rooms) {
+struct Room* Menu(struct Room* room, struct Room* rooms, int* stepsTaken, char* path[]) {
 	printf("\nCURRENT LOCATION: %s\n", room->name);
 	printf("POSSIBLE CONNECTIONS: ");
 	int i;
+	// display possible connections
 	for(i = 0; i < room->numConnections; i++) {
 		if(i == (room->numConnections - 1))
 			printf("%s.\n", room->connections[i]);
 		else
 			printf("%s, ", room->connections[i]);
 	}
+	// get user input
 	printf("WHERE TO? >");
 	char* buffer;
 	size_t buffsize = 10;
@@ -101,9 +104,12 @@ struct Room* Menu(struct Room* room, struct Room* rooms) {
 	characters = getline(&buffer, &buffsize, stdin);
 	// strip the newline character from input buffer so a match can be made to room names
 	buffer[characters - 1] = '\0';
+	// check to see that user input is a valid connection to current room
 	if(IsConnection(buffer, room)) {
 		room = FindRoom(buffer, rooms);
 		printf("New room is %s\n", room->name);
+		path[*stepsTaken] = room->name;
+		(*stepsTaken)++;
 	}
 	else {
 		printf("\nHUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n");

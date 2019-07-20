@@ -6,10 +6,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <time.h>
+#include <pthread.h>
 
 #define NUM_ROOMS 7
 #define MAX_CONNECTIONS 6
 #define MAX_NAME_SIZE 9
+
+
+pthread_mutex_t myMutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct Room {
 	char name[MAX_NAME_SIZE];
@@ -18,43 +22,38 @@ struct Room {
 	int numConnections;
 };
 
+// function prototypes
 int IsEndRoom(struct Room*);
 struct Room* FindStartRoom(struct Room*);
 void GetNewestDir(char*);
 void ReadFiles(char*, struct Room*);
 void FileToStruct(char*, struct Room*, int);
-struct Room* Menu(struct Room*, struct Room*, int*, char**);
+void DisplayInfo(struct Room*);
+void PromptUser(char *);
 int IsConnection(char*, struct Room*);
 struct Room* FindRoom(char*, struct Room*);
+void* GetTime();
+void DisplayTime();
 
 int main() {
-	// time experimenting
-	char outstr[200];
-	time_t t;
-	struct tm *tmp;
-
-	t = time(NULL);
-	tmp = localtime(&t);
-	// 1:03pm, Tuesday, September 13, 2016
-	strftime(outstr, sizeof(outstr), "%l:%M%P, %A, %B %d, %Y", tmp); 
-	printf("Result string is %s\n", outstr);
-	
-	// write time to file
-	FILE *fptr;
-	fptr = fopen("currentTime.txt", "w+");
-	fprintf(fptr, outstr);
-	exit(EXIT_SUCCESS);
 
 	struct Room rooms[NUM_ROOMS];
 	int stepsTaken = 0;
 	char* path[100];
+	char input[10];
+	char newestDirName[256]; // Holds the name of the newest dir that contains prefix
+	int resultInt;
+	pthread_mutex_lock(&myMutex);
+	pthread_t timeThread;
+	pthread_create(&timeThread, NULL, GetTime, NULL);
+	
+	
 	// set all Rooms numConnections to 0
 	int i;
 	for(i = 0; i < NUM_ROOMS; i++) {
 		rooms[i].numConnections = 0;
 	}
 
-	char newestDirName[256]; // Holds the name of the newest dir that contains prefix
 	GetNewestDir(newestDirName);
 	ReadFiles(newestDirName, rooms);
 	
@@ -62,17 +61,75 @@ int main() {
 	struct Room* currentRoom = FindStartRoom(rooms);
 	// play the game by presenting the menu until end room is reached
 	do {
-		currentRoom = Menu(currentRoom, rooms, &stepsTaken, path);
+		DisplayInfo(currentRoom);
+		PromptUser(input);
+		// check if user entered "time"
+		if (strcmp(input, "time") == 0) {
+			// different menu display after time is shown; so while loop is needed
+			while(strcmp(input, "time") == 0) {
+				// unlock the main thread so that timeThread can execute
+				pthread_mutex_unlock(&myMutex);
+				pthread_join(timeThread, NULL);
+				pthread_mutex_lock(&myMutex);
+				// display time
+				DisplayTime();
+				pthread_create(&timeThread, NULL, GetTime, NULL);
+				PromptUser(input);		
+			}
+		}
+		// check to see that user input is a valid connection to current room
+		if(IsConnection(input, currentRoom)) {
+			currentRoom = FindRoom(input, rooms);
+			path[stepsTaken] = currentRoom->name;
+			stepsTaken++;
+		}
+		// user input is not valid
+		else {
+			printf("HUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n\n");
+		}
 
 	} while(!IsEndRoom(currentRoom));
 	// end room has been reached, player wins
-	printf("\nYOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
+	printf("YOU HAVE FOUND THE END ROOM. CONGRATULATIONS!\n");
 	printf("YOU TOOK %d STEPS. YOUR PATH TO VICTORY WAS:\n", stepsTaken);
 	for(i = 0; i < (stepsTaken); i++) {
 			printf("%s\n", path[i]);
 	}
 	
 	return 0;
+}
+
+// Get time from currentTime.txt and prints it to user
+void DisplayTime() {
+	FILE *fptr;
+	fptr = fopen("currentTime.txt", "r");
+	char s;
+	while((s = fgetc(fptr)) != EOF) {
+		printf("%c", s);
+	}
+	printf("\n\n");
+}
+
+// Gets the time using another thread and writes time to a file called currentTime.txt
+void* GetTime() {
+	pthread_mutex_lock(&myMutex);
+
+	char outstr[200];
+	time_t t;
+	struct tm *tmp;
+	
+	t = time(NULL);
+	tmp = localtime(&t);
+	// formatting time
+	strftime(outstr, sizeof(outstr), "%l:%M%P, %A, %B %d, %Y", tmp); 
+	
+	// write time to file
+	FILE *fptr;
+	fptr = fopen("currentTime.txt", "w+");
+	fprintf(fptr, outstr);
+	fclose(fptr);
+
+	pthread_mutex_unlock(&myMutex);
 }
 
 // Checks to see if a given string is a room name in room's connections
@@ -100,18 +157,8 @@ struct Room* FindRoom(char* room, struct Room* rooms) {
 	return newRoom;
 }
 
-// Displays the menu
-struct Room* Menu(struct Room* room, struct Room* rooms, int* stepsTaken, char* path[]) {
-	printf("\nCURRENT LOCATION: %s\n", room->name);
-	printf("POSSIBLE CONNECTIONS: ");
-	int i;
-	// display possible connections
-	for(i = 0; i < room->numConnections; i++) {
-		if(i == (room->numConnections - 1))
-			printf("%s.\n", room->connections[i]);
-		else
-			printf("%s, ", room->connections[i]);
-	}
+// Gets user input and stores it into input variable
+void PromptUser(char *input) {
 	// get user input
 	printf("WHERE TO? >");
 	char* buffer;
@@ -122,19 +169,23 @@ struct Room* Menu(struct Room* room, struct Room* rooms, int* stepsTaken, char* 
 	characters = getline(&buffer, &buffsize, stdin);
 	// strip the newline character from input buffer so a match can be made to room names
 	buffer[characters - 1] = '\0';
-	// check to see that user input is a valid connection to current room
-	if(IsConnection(buffer, room)) {
-		room = FindRoom(buffer, rooms);
-		printf("New room is %s\n", room->name);
-		path[*stepsTaken] = room->name;
-		(*stepsTaken)++;
-	}
-	else {
-		printf("\nHUH? I DON'T UNDERSTAND THAT ROOM. TRY AGAIN.\n");
-	}
-	
+	strcpy(input, buffer);
 	free(buffer);
-	return room;
+	printf("\n");
+}
+
+// Displays the room location and connections
+void DisplayInfo(struct Room* room) {
+	printf("CURRENT LOCATION: %s\n", room->name);
+	printf("POSSIBLE CONNECTIONS: ");
+	int i;
+	// display possible connections
+	for(i = 0; i < room->numConnections; i++) {
+		if(i == (room->numConnections - 1))
+			printf("%s.\n", room->connections[i]);
+		else
+			printf("%s, ", room->connections[i]);
+	}
 }
 
 // IsEndRoom is a bool function that checks to see if a room is the end room
@@ -175,7 +226,6 @@ void GetNewestDir(char* newestDirName) {
 		{
 			if (strstr(fileInDir->d_name, targetDirPrefix) != NULL) // If entry has prefix
 			{
-				printf("Found the prefix: %s\n", fileInDir->d_name);
 				stat(fileInDir->d_name, &dirAttributes); // Get attributes of the entry
 
 				if ((int)dirAttributes.st_mtime > newestDirTime) // If this time is bigger
@@ -184,8 +234,6 @@ void GetNewestDir(char* newestDirName) {
 					memset(newestDirName, '\0', sizeof(newestDirName));
 					strcpy(newestDirName, "./");
 					strcat(newestDirName, fileInDir->d_name);
-					printf("Newer subdir: %s, new time: %d\n",
-							newestDirName, newestDirTime);
 				}
 			}
 		}

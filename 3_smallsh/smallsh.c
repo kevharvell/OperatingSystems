@@ -12,7 +12,7 @@
 void CatchSIGINT(int);
 void ChangeDir(char* []);
 void Execute(char* []);
-int FindWriteRedirect(char* []);
+int FindRedirect(char* [], char*);
 void GetInput(char*);
 int IsBackground(char* []);
 void KillAll(pid_t[]);
@@ -22,12 +22,13 @@ void RemoveArgs(char* [], int, int);
 void Status();
 
 int main() {
-	char input[MAX_CMD_CHARS]; 
-	char* arguments[MAX_ARGS];
+	char input[MAX_CMD_CHARS]; // stores the input a user entered
+	char* arguments[MAX_ARGS]; // stores all of the arguments a user entered
 	pid_t spawnID = -5;
 	int childExitMethod = -5;
-	int writeIdx = 0;
-	int fileCode;
+	int inIdx = 0; // used to store index of arguments where a in "<" redirect symbol is used
+	int outIdx = 0; // used to store index of arguments where a out ">" redirect symbol is used
+	int fileI, fileO; // used for input/output files in redirects
 
 	// 100 is an arbitrary reasonable value. Could lead to an issue if user runs more than 100 processes
 	// but that seems unlikely.
@@ -71,25 +72,36 @@ int main() {
 					break;
 				case 0:
 					// child code
-					// check if write redirect
-					writeIdx = FindWriteRedirect(arguments);
-					if(writeIdx) {
-						/*TODO*/
+					// check if out redirect
+					outIdx = FindRedirect(arguments, ">");
+					if(outIdx) {
 						// Try to open or create the specified file
-						fileCode = open(arguments[writeIdx], O_CREAT | O_TRUNC | O_WRONLY, 0600);
-						if(fileCode < 0) {
+						fileO = open(arguments[outIdx], O_CREAT | O_TRUNC | O_WRONLY, 0600);
+						if(fileO < 0) {
 							perror("could not open file\n");
 							exit(1);
 						}
 						else {
-							printf("should print args now?\n");
-							PrintArgs(arguments);
 							// redirecting stdout to specified file
-							dup2(fileCode, 1);
+							dup2(fileO, 1);
 							// remove the redirect and file name arguments
-							RemoveArgs(arguments, writeIdx - 1, 2);
-							printf("should print args again?\n");
-							PrintArgs(arguments);
+							RemoveArgs(arguments, outIdx - 1, 2);
+						}
+					}
+
+					// check if in redirect
+					inIdx = FindRedirect(arguments, "<");
+					if(inIdx) {
+						// Try to open the file to read from
+						fileI = open(arguments[inIdx], O_RDONLY, 0600);
+						if(fileI < 0) {
+							perror("could not open file\n");
+							exit(1);
+						}		
+						else {
+							// redirecting stdin to specified file
+							dup2(fileI, 0);
+							RemoveArgs(arguments, inIdx - 1, 2);
 						}
 					}
 					if(IsBackground(arguments))
@@ -138,12 +150,13 @@ void Execute(char* args[]) {
 	}
 }
 
-int FindWriteRedirect(char* args[]) {
+// Finds the redirect symbol and returns the index after it (the file to read/write to)
+int FindRedirect(char* args[], char* symbol) {
 	int redirectIdx = 0;
 	// starting at index 1 because we don't want this to fire off if the first arg(index 0) is a redirect
 	int i = 1;
 	while(args[i] != NULL) {
-		if((strcmp(args[i], ">") == 0) && (args[i + 1] != NULL))
+		if((strcmp(args[i], symbol) == 0) && (args[i + 1] != NULL))
 			redirectIdx = i + 1;
 		i++;
 	}
@@ -214,6 +227,7 @@ void ParseInput(char* input, char* args[]) {
 	}
 }
 
+// Used for testing
 void PrintArgs(char* args[]) {
 	int i;
 	printf("\n");
@@ -223,6 +237,7 @@ void PrintArgs(char* args[]) {
 	}
 }
 
+// Removes a number of arguments(indicated by numArgsRemoved) starting at the specified index
 void RemoveArgs(char* args[], int index, int numArgsRemoved) {
 	int i;
 	// repeat removing from array for as many args that need to be removed

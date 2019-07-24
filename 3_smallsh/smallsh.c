@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 #define MAX_CMD_CHARS 2048
 #define MAX_ARGS 512
@@ -11,10 +12,13 @@
 void CatchSIGINT(int);
 void ChangeDir(char* []);
 void Execute(char* []);
+int FindWriteRedirect(char* []);
 void GetInput(char*);
+int IsBackground(char* []);
 void KillAll(pid_t[]);
 void ParseInput(char*, char* []);
 void PrintArgs(char* []);
+void RemoveArgs(char* [], int, int);
 void Status();
 
 int main() {
@@ -22,8 +26,11 @@ int main() {
 	char* arguments[MAX_ARGS];
 	pid_t spawnID = -5;
 	int childExitMethod = -5;
+	int writeIdx = 0;
+	int fileCode;
 
 	// 100 is an arbitrary reasonable value. Could lead to an issue if user runs more than 100 processes
+	// but that seems unlikely.
 	pid_t pIDS[100];
 	int processCount = 0;
 	memset(pIDS, -1, sizeof(pIDS));
@@ -49,7 +56,13 @@ int main() {
 		else if(strcmp(arguments[0], "status") == 0) {
 			Status();
 		}
+		// user entered a comment "#" as the first character in input
+		else if(input[0] ==  '#') {
+			// nothing happens
+		}
+		// no built-in command entered. call args using exec instead
 		else {
+			// create the child here
 			spawnID = fork();
 			switch(spawnID) {
 				case -1:
@@ -58,25 +71,50 @@ int main() {
 					break;
 				case 0:
 					// child code
+					// check if write redirect
+					writeIdx = FindWriteRedirect(arguments);
+					if(writeIdx) {
+						/*TODO*/
+						// Try to open or create the specified file
+						fileCode = open(arguments[writeIdx], O_CREAT | O_TRUNC | O_WRONLY, 0600);
+						if(fileCode < 0) {
+							perror("could not open file\n");
+							exit(1);
+						}
+						else {
+							printf("should print args now?\n");
+							PrintArgs(arguments);
+							// redirecting stdout to specified file
+							dup2(fileCode, 1);
+							// remove the redirect and file name arguments
+							RemoveArgs(arguments, writeIdx - 1, 2);
+							printf("should print args again?\n");
+							PrintArgs(arguments);
+						}
+					}
+					if(IsBackground(arguments))
+						printf("THIS IS A BG COMMAND\n");
 					Execute(arguments);				
 					break;
 				default: 
+					// parent code
 					waitpid(spawnID, &childExitMethod, 0);
 					break;
 			}
 		}
 	}
 	
-		
-
 	return 0;
 }
 
+// Catches SIGINT signals and writes a message
 void CatchSIGINT(int signo) {
 	char* message = "SIGINT. Use CTRL-Z to Stop.\n";
 	write(STDOUT_FILENO, message, 28);
 }
 
+// Implements the "cd" command by changing the directory if specified. If not, defaults to environment
+// HOME directory
 void ChangeDir(char* args[]) {
 	int status;
 	if(args[1] == NULL) {
@@ -91,6 +129,7 @@ void ChangeDir(char* args[]) {
 	}
 }
 
+// Executes the given array of arguments being sure to flush stdout first
 void Execute(char* args[]) {
 	if(execvp(*args, args) < 0) {
 		fflush(stdout);
@@ -99,6 +138,19 @@ void Execute(char* args[]) {
 	}
 }
 
+int FindWriteRedirect(char* args[]) {
+	int redirectIdx = 0;
+	// starting at index 1 because we don't want this to fire off if the first arg(index 0) is a redirect
+	int i = 1;
+	while(args[i] != NULL) {
+		if((strcmp(args[i], ">") == 0) && (args[i + 1] != NULL))
+			redirectIdx = i + 1;
+		i++;
+	}
+	return redirectIdx;
+}
+
+// Get the input from the user and store it in the passed in input variable
 void GetInput(char* input) {
 	int numCharsEntered = -5; // how many chars we entered
 	int currChar = -5; // tracks where we are when we print out ever char
@@ -123,6 +175,19 @@ void GetInput(char* input) {
 	lineEntered = NULL;
 }
 
+// Checks to see if the commands entered are background commands
+int IsBackground(char* args[]) {
+	// Find the length of the args array
+	int length = 0;
+	while(args[length] != NULL) {
+		length++;
+	}
+	if(strcmp(args[length - 1], "&") != 0)
+		length = 0;
+	return length;
+}
+
+// Kill all background and foreground processes
 void KillAll(pid_t pIDS[]) {
 	int i = 0, status = -3;
 	while(pIDS[i] != -1) {
@@ -135,6 +200,7 @@ void KillAll(pid_t pIDS[]) {
 	exit(0);
 }
 
+// Take given input and parse it by spaces into an arguments array
 void ParseInput(char* input, char* args[]) {
 	char* token;
 	int argCounter = 0;
@@ -149,22 +215,37 @@ void ParseInput(char* input, char* args[]) {
 }
 
 void PrintArgs(char* args[]) {
+	int i;
 	printf("\n");
-	int i = 0;
 	while(args[i] != NULL) {
-		printf("%s, ", args[i]);
+		printf("%s\n", args[i]);
 		i++;
 	}
-	printf("\n");
 }
 
+void RemoveArgs(char* args[], int index, int numArgsRemoved) {
+	int i;
+	// repeat removing from array for as many args that need to be removed
+	for(i = 0; i < numArgsRemoved; i++) {
+		int j = index;
+		while(args[j+1] != NULL) {
+			args[j] = args[j+1];
+			j++;
+		}
+		args[j] = NULL;
+	}
+}
+
+// Prints the exit status or terminating signal of the last foreground process
 void Status() {
 	int statCode;
+	// check if status was exited
 	if(WIFEXITED(statCode) != 0) {
 		statCode = WEXITSTATUS(statCode);
 		fflush(stdout);
 		printf("exit value %d\n", statCode);
 	}
+	// check if status was terminated by a signal
 	else if(WIFSIGNALED(statCode) != 0) {
 		statCode = WTERMSIG(statCode);
 		fflush(stdout);

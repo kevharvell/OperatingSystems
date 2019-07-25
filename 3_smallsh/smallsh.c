@@ -22,12 +22,12 @@ void Expand$$(char*);
 int FindRedirect(char* [], char*);
 int FindBG(char* []);
 void GetInput(char*);
-//void SigInit(struct sigaction*, struct sigaction*, struct sigaction*);
 void KillAll(pid_t[]);
 void ParseInput(char*, char* []);
 void PrintArgs(char* []);
+void ReapZombies(pid_t*, int*);
 void RemoveArgs(char* [], int, int);
-void Status(int);
+void Status(int*);
 
 int main() {
 	char input[MAX_CMD_CHARS]; // stores the input a user entered
@@ -64,10 +64,15 @@ int main() {
 	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 	
 	while(1) {
+		ReapZombies(pIDS, &processCount);
 		GetInput(input);
 		ParseInput(input, arguments);
+		// user entered a comment "#" as the first character in input
+		if(input[0] ==  '#' || input[0] == '\0') {
+			// nothing happens
+		}
 		// user entered "exit"
-		if(strcmp(arguments[0], "exit") == 0) {
+		else if(strcmp(arguments[0], "exit") == 0) {
 			KillAll(pIDS);
 		} 
 		// user entered "cd"
@@ -76,11 +81,7 @@ int main() {
 		}
 		// user entered "status"
 		else if(strcmp(arguments[0], "status") == 0) {
-			Status(childExitMethod);
-		}
-		// user entered a comment "#" as the first character in input
-		else if(input[0] ==  '#') {
-			// nothing happens
+			Status(&childExitMethod);
 		}
 		// no built-in command entered. call args using exec instead
 		else {
@@ -102,7 +103,7 @@ int main() {
 						// Try to open or create the specified file
 						fileO = open(arguments[outIdx], O_CREAT | O_TRUNC | O_WRONLY, 0600);
 						if(fileO < 0) {
-							perror("could not open file\n");
+							printf("cannot open %s for output\n", arguments[outIdx]);
 							exit(1);
 						}
 						else {
@@ -119,7 +120,7 @@ int main() {
 						// Try to open the file to read from
 						fileI = open(arguments[inIdx], O_RDONLY, 0600);
 						if(fileI < 0) {
-							perror("could not open file\n");
+							printf("cannot open %s for input\n", arguments[inIdx]);
 							exit(1);
 						}		
 						else {
@@ -132,7 +133,6 @@ int main() {
 					if(bgIdx) {
 						// Remove the "&" from arguments
 						RemoveArgs(arguments, bgIdx, 1);
-						printf("THIS IS A BG COMMAND\n");
 						// If in foreground only mode, change signals to default
 						if(isFGMode) {
 							ChangeSignals(&SIGINT_action, &SIGTSTP_action, 1);	
@@ -160,7 +160,16 @@ int main() {
 					break;
 				default: 
 					// parent code
-					waitpid(spawnID, &childExitMethod, 0);
+					if(!isFGMode && bgIdx) {
+						fflush(stdout);
+						printf("background PID is %d\n", spawnID);
+						pIDS[processCount] = spawnID;
+						processCount++;
+					}
+					else {
+						childExitMethod = -5;
+						waitpid(spawnID, &childExitMethod, 0);
+					}
 					break;
 			}
 		}
@@ -205,7 +214,7 @@ void ChangeDir(char* args[]) {
 	}
 }
 
-/*TODO: FIX THIS */
+// Changes signal behavior based on whether foreground only mode are enabled or not
 void ChangeSignals(struct sigaction* SIGINT_action, struct sigaction* SIGTSTP_action, int isFG) {
 	// In foreground-only mode change SIGINT behavior to default (SIG_DFL)
 	if(isFG) {
@@ -227,7 +236,7 @@ void ChangeSignals(struct sigaction* SIGINT_action, struct sigaction* SIGTSTP_ac
 void Execute(char* args[]) {
 	if(execvp(*args, args) < 0) {
 		fflush(stdout);
-		perror("exec call failure");
+		perror(args[0]);
 		exit(1);
 	}
 }
@@ -336,6 +345,41 @@ void PrintArgs(char* args[]) {
 	}
 }
 
+// Goes through list of background processes to determine which processes have ended and reports them to the user
+// and removes them from the processID's array
+void ReapZombies(pid_t pIDS[], int* processCount) {
+	if(processCount > 0) {
+		int i;
+		int j;
+		int childExitMethod = -5;
+		int status = -1;
+		// Go through array of active processes looking for any that have finished
+		for(i = 0; i < *processCount; i++) {
+			// Check if process has ended
+			if(waitpid(pIDS[i], &childExitMethod, WNOHANG) != 0) {
+				// Did process exit?
+				if(WIFEXITED(childExitMethod) != 0)
+					status = WEXITSTATUS(childExitMethod);
+					fflush(stdout);
+					printf("background pid %d is done: exit value %d\n", pIDS[i], status);
+
+				// Did process terminate via signal?
+				if(WIFSIGNALED(childExitMethod) != 0) {
+					status = WTERMSIG(childExitMethod);
+					fflush(stdout);
+					printf("background pid %d is done: terminated by signal %d\n", pIDS[i], status);
+				}
+					// Process has been accounted for; decrease count and remove from array
+				(*processCount)--;
+				for(j = i; j < *processCount; j++) {
+					pIDS[j] = pIDS[j+1];
+				}
+			}
+		}
+
+	}
+}
+
 // Removes a number of arguments(indicated by numArgsRemoved) starting at the specified index
 void RemoveArgs(char* args[], int index, int numArgsRemoved) {
 	int i;
@@ -353,18 +397,18 @@ void RemoveArgs(char* args[], int index, int numArgsRemoved) {
 //void SigInit(struct sigaction* sigint, struct sigaction* sigstop
 
 // Prints the exit status or terminating signal of the last foreground process
-void Status(int statCode) {
+void Status(int* statCode) {
 	// check if status was exited
-	if(WIFEXITED(statCode) != 0) {
-		statCode = WEXITSTATUS(statCode);
+	if(WIFEXITED(*statCode) != 0) {
+		*statCode = WEXITSTATUS(*statCode);
 		fflush(stdout);
-		printf("exit value %d\n", statCode);
+		printf("exit value %d\n", *statCode);
 	}
 	// check if status was terminated by a signal
-	else if(WIFSIGNALED(statCode) != 0) {
-		statCode = WTERMSIG(statCode);
+	else if(WIFSIGNALED(*statCode) != 0) {
+		*statCode = WTERMSIG(*statCode);
 		fflush(stdout);
-		printf("terminated by signal %d\n", statCode);
+		printf("terminated by signal %d\n", *statCode);
 	}
 }
 

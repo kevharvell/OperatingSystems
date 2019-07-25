@@ -9,17 +9,25 @@
 #define MAX_CMD_CHARS 2048
 #define MAX_ARGS 512
 
+// Global variable to keep track of Foreground only mode. Global makes sense so it doesn't have to be passed aroundbetween the various functions that rely on it.
+int isFGMode = 0;
+
+// Function prototypes
 void CatchSIGINT(int);
+void CatchSIGTSTP(int);
 void ChangeDir(char* []);
+void ChangeSignals(struct sigaction*, struct sigaction*, int);
 void Execute(char* []);
+void Expand$$(char*); 
 int FindRedirect(char* [], char*);
+int FindBG(char* []);
 void GetInput(char*);
-int IsBackground(char* []);
+//void SigInit(struct sigaction*, struct sigaction*, struct sigaction*);
 void KillAll(pid_t[]);
 void ParseInput(char*, char* []);
 void PrintArgs(char* []);
 void RemoveArgs(char* [], int, int);
-void Status();
+void Status(int);
 
 int main() {
 	char input[MAX_CMD_CHARS]; // stores the input a user entered
@@ -29,6 +37,7 @@ int main() {
 	int inIdx = 0; // used to store index of arguments where a in "<" redirect symbol is used
 	int outIdx = 0; // used to store index of arguments where a out ">" redirect symbol is used
 	int fileI, fileO; // used for input/output files in redirects
+	int bgIdx = 0; // used to store index of arguments where a "&" is used for background processes
 
 	// 100 is an arbitrary reasonable value. Could lead to an issue if user runs more than 100 processes
 	// but that seems unlikely.
@@ -36,11 +45,23 @@ int main() {
 	int processCount = 0;
 	memset(pIDS, -1, sizeof(pIDS));
 
+	// signal handling sets SIGINT and SIGSTP behaviors
 	struct sigaction SIGINT_action = {0};
+	struct sigaction SIGTSTP_action = {0};
+	struct sigaction IGNORE_action = {0};
+
 	SIGINT_action.sa_handler = CatchSIGINT;
 	sigfillset(&SIGINT_action.sa_mask);
-	//SIGINT_action.sa_flags = SA_RESTART;
+	SIGINT_action.sa_flags = 0;
+
+	SIGTSTP_action.sa_handler = CatchSIGTSTP;
+	sigfillset(&SIGTSTP_action.sa_mask);
+	SIGTSTP_action.sa_flags = 0;
+
+	IGNORE_action.sa_handler = SIG_IGN;
+
 	sigaction(SIGINT, &SIGINT_action, NULL);
+	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 	
 	while(1) {
 		GetInput(input);
@@ -55,7 +76,7 @@ int main() {
 		}
 		// user entered "status"
 		else if(strcmp(arguments[0], "status") == 0) {
-			Status();
+			Status(childExitMethod);
 		}
 		// user entered a comment "#" as the first character in input
 		else if(input[0] ==  '#') {
@@ -63,6 +84,9 @@ int main() {
 		}
 		// no built-in command entered. call args using exec instead
 		else {
+			// store the location of the background symbol "&" in order to remove it from args
+			int bgIdx = FindBG(arguments); 
+			
 			// create the child here
 			spawnID = fork();
 			switch(spawnID) {
@@ -104,8 +128,34 @@ int main() {
 							RemoveArgs(arguments, inIdx - 1, 2);
 						}
 					}
-					if(IsBackground(arguments))
+					// check if a background command was entered
+					if(bgIdx) {
+						// Remove the "&" from arguments
+						RemoveArgs(arguments, bgIdx, 1);
 						printf("THIS IS A BG COMMAND\n");
+						// If in foreground only mode, change signals to default
+						if(isFGMode) {
+							ChangeSignals(&SIGINT_action, &SIGTSTP_action, 1);	
+						}
+						// If not in foreground only mode, change signals to ignore
+						// and set input/output to null (if relevant)
+						else {
+							ChangeSignals(&SIGINT_action, &SIGTSTP_action, 0);
+							if(outIdx) {
+								fileO = open("/dev/null", O_WRONLY);
+								dup2(fileO, 1);
+							}
+							if(inIdx) {
+								fileI = open("/dev/null", O_RDONLY);
+								dup2(fileI, 0);
+							}
+						}
+					}
+					// Is not a background command; make sure signals are set to foreground settings
+					else {
+						ChangeSignals(&SIGINT_action, &SIGTSTP_action, 1);
+					}
+
 					Execute(arguments);				
 					break;
 				default: 
@@ -121,8 +171,22 @@ int main() {
 
 // Catches SIGINT signals and writes a message
 void CatchSIGINT(int signo) {
-	char* message = "SIGINT. Use CTRL-Z to Stop.\n";
-	write(STDOUT_FILENO, message, 28);
+	char* message = "terminated by signal 2\n";
+	write(STDOUT_FILENO, message, 23);
+}
+
+// Catches SIGSTP signals and writes a message based on whether Foreground-only mode is enabled or not
+void CatchSIGTSTP(int signo) {
+	char* message1 = "Entering foreground-only mode (& is now ignored)\n";
+	char* message2 = "Exiting foreground-only mode\n";
+	if(isFGMode) {
+		isFGMode = 0;
+		write(STDOUT_FILENO, message2, 29);
+	}	
+	else {
+		isFGMode = 1;
+		write(STDOUT_FILENO, message1, 49);
+	}
 }
 
 // Implements the "cd" command by changing the directory if specified. If not, defaults to environment
@@ -141,6 +205,24 @@ void ChangeDir(char* args[]) {
 	}
 }
 
+/*TODO: FIX THIS */
+void ChangeSignals(struct sigaction* SIGINT_action, struct sigaction* SIGTSTP_action, int isFG) {
+	// In foreground-only mode change SIGINT behavior to default (SIG_DFL)
+	if(isFG) {
+		SIGINT_action->sa_handler = SIG_DFL;
+		SIGTSTP_action->sa_handler = SIG_IGN;
+		sigaction(SIGINT, SIGINT_action, NULL);
+		sigaction(SIGTSTP, SIGTSTP_action, NULL);
+	}
+	// Out of foreground-only mode ignore
+	else {
+		SIGINT_action->sa_handler = SIG_IGN;
+		SIGTSTP_action->sa_handler = SIG_IGN;
+		sigaction(SIGINT, SIGINT_action, NULL);
+		sigaction(SIGTSTP, SIGTSTP_action, NULL);
+	}
+}
+
 // Executes the given array of arguments being sure to flush stdout first
 void Execute(char* args[]) {
 	if(execvp(*args, args) < 0) {
@@ -148,6 +230,33 @@ void Execute(char* args[]) {
 		perror("exec call failure");
 		exit(1);
 	}
+}
+
+// Expands string input instances of "$$" to the process ID
+void Expand$$(char* input) {
+	pid_t pid = getpid();
+	// process ID's usually 5 digits, made mine 10 just in case
+	char pidStr[10];
+	memset(pidStr, '\0', sizeof(pidStr));
+	sprintf(pidStr, "%d", pid);
+	// look for instances of "$$" and replace with process ID's
+	while(strstr(input, "$$") != NULL) {
+		char* ptr = strstr(input, "$$");
+		strcpy(ptr + strlen(pidStr), ptr + 2);
+		strncpy(ptr, pidStr, strlen(pidStr));
+	}
+}
+
+int FindBG(char* args[]) {
+	int bgIdx = 0;
+	// starting at index 1 because we need something before the & for it to be valid
+	int i = 1;
+	while(args[i] != NULL) {
+		if((strcmp(args[i], "&") == 0) && (args[i + 1] == NULL))
+			bgIdx = i;
+		i++;
+	}
+	return bgIdx;
 }
 
 // Finds the redirect symbol and returns the index after it (the file to read/write to)
@@ -188,21 +297,9 @@ void GetInput(char* input) {
 	lineEntered = NULL;
 }
 
-// Checks to see if the commands entered are background commands
-int IsBackground(char* args[]) {
-	// Find the length of the args array
-	int length = 0;
-	while(args[length] != NULL) {
-		length++;
-	}
-	if(strcmp(args[length - 1], "&") != 0)
-		length = 0;
-	return length;
-}
-
 // Kill all background and foreground processes
 void KillAll(pid_t pIDS[]) {
-	int i = 0, status = -3;
+	int i = 0, status = -5;
 	while(pIDS[i] != -1) {
 		// kill process, then wait to clean resources
 		kill(pIDS[i], SIGTERM);
@@ -215,6 +312,8 @@ void KillAll(pid_t pIDS[]) {
 
 // Take given input and parse it by spaces into an arguments array
 void ParseInput(char* input, char* args[]) {
+	// Expand "$$" in input string first
+	Expand$$(input);
 	char* token;
 	int argCounter = 0;
 	token = strtok(input, " ");
@@ -251,9 +350,10 @@ void RemoveArgs(char* args[], int index, int numArgsRemoved) {
 	}
 }
 
+//void SigInit(struct sigaction* sigint, struct sigaction* sigstop
+
 // Prints the exit status or terminating signal of the last foreground process
-void Status() {
-	int statCode;
+void Status(int statCode) {
 	// check if status was exited
 	if(WIFEXITED(statCode) != 0) {
 		statCode = WEXITSTATUS(statCode);

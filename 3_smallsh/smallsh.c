@@ -358,11 +358,11 @@ void ReapZombies(pid_t pIDS[], int* processCount) {
 			// Check if process has ended
 			if(waitpid(pIDS[i], &childExitMethod, WNOHANG) != 0) {
 				// Did process exit?
-				if(WIFEXITED(childExitMethod) != 0)
+				if(WIFEXITED(childExitMethod) != 0) {
 					status = WEXITSTATUS(childExitMethod);
 					fflush(stdout);
 					printf("background pid %d is done: exit value %d\n", pIDS[i], status);
-
+				}
 				// Did process terminate via signal?
 				if(WIFSIGNALED(childExitMethod) != 0) {
 					status = WTERMSIG(childExitMethod);

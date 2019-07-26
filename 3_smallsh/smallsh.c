@@ -24,7 +24,6 @@ int FindBG(char* []);
 void GetInput(char*);
 void KillAll(pid_t[]);
 void ParseInput(char*, char* []);
-void PrintArgs(char* []);
 void ReapZombies(pid_t*, int*);
 void RemoveArgs(char* [], int, int);
 void Status(int*);
@@ -50,10 +49,12 @@ int main() {
 	struct sigaction SIGTSTP_action = {0};
 	struct sigaction IGNORE_action = {0};
 
+	// change SIGINT behavior
 	SIGINT_action.sa_handler = CatchSIGINT;
 	sigfillset(&SIGINT_action.sa_mask);
 	SIGINT_action.sa_flags = 0;
 
+	// change SIGTSTP behavior
 	SIGTSTP_action.sa_handler = CatchSIGTSTP;
 	sigfillset(&SIGTSTP_action.sa_mask);
 	SIGTSTP_action.sa_flags = 0;
@@ -62,7 +63,8 @@ int main() {
 
 	sigaction(SIGINT, &SIGINT_action, NULL);
 	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
-	
+
+	// repeat the prompt forever until "exit" is entered
 	while(1) {
 		ReapZombies(pIDS, &processCount);
 		GetInput(input);
@@ -160,12 +162,15 @@ int main() {
 					break;
 				default: 
 					// parent code
+					// If not in foreground only mode and there is a background process,
+					// print out the background PID
 					if(!isFGMode && bgIdx) {
 						fflush(stdout);
 						printf("background PID is %d\n", spawnID);
 						pIDS[processCount] = spawnID;
 						processCount++;
 					}
+					// Not a background process - wait for child in foreground
 					else {
 						childExitMethod = -5;
 						waitpid(spawnID, &childExitMethod, 0);
@@ -256,11 +261,13 @@ void Expand$$(char* input) {
 	}
 }
 
+// Returns the index of where "&" is found or 0 if not found - used like a boolean
 int FindBG(char* args[]) {
 	int bgIdx = 0;
 	// starting at index 1 because we need something before the & for it to be valid
 	int i = 1;
 	while(args[i] != NULL) {
+		// if current argument is "&" and there's nothing after it
 		if((strcmp(args[i], "&") == 0) && (args[i + 1] == NULL))
 			bgIdx = i;
 		i++;
@@ -269,11 +276,13 @@ int FindBG(char* args[]) {
 }
 
 // Finds the redirect symbol and returns the index after it (the file to read/write to)
+// =
 int FindRedirect(char* args[], char* symbol) {
 	int redirectIdx = 0;
 	// starting at index 1 because we don't want this to fire off if the first arg(index 0) is a redirect
 	int i = 1;
 	while(args[i] != NULL) {
+		// if current argument is passed in symbol and there is a next argument after the symbol
 		if((strcmp(args[i], symbol) == 0) && (args[i + 1] != NULL))
 			redirectIdx = i + 1;
 		i++;
@@ -332,16 +341,6 @@ void ParseInput(char* input, char* args[]) {
 		token = strtok(NULL, " ");
 		args[argCounter] = token;
 		argCounter++;
-	}
-}
-
-// Used for testing
-void PrintArgs(char* args[]) {
-	int i;
-	printf("\n");
-	while(args[i] != NULL) {
-		printf("%s\n", args[i]);
-		i++;
 	}
 }
 

@@ -13,6 +13,7 @@ void error(const char *msg) { perror(msg); exit(0); }
 // function prototypes
 int IsInputValid(char*);
 char* FileToText(char*);
+int IsValidAck(int);
 
 int main(int argc, char *argv[]) {
 	int socketFD, portNumber, charsWritten, charsRead;
@@ -33,7 +34,7 @@ int main(int argc, char *argv[]) {
 	// Check to see that the text is larger than the key. If not, print an error and free
 	// allocated memory
 	if(strlen(text) > strlen(key)) {
-		fprintf(stderr, "key '%s' is too short", argv[2]);
+		fprintf(stderr, "Error: key '%s' is too short\n", argv[2]);
 		free(text);
 		free(key);
 		exit(1);
@@ -42,20 +43,22 @@ int main(int argc, char *argv[]) {
 	// Check to see if either text or key contain invalid inputs. If they do contain invalid
 	// inputs, free allocated memory and exit program.
 	if(!IsInputValid(text) || !IsInputValid(key)) {
-		fprintf(stderr, "input contains bad characters\n");
+		fprintf(stderr, "Error: input contains bad characters\n");
 		free(text);
 		free(key);
 		exit(1);
 	}
 
-
+	// Get rid of the \n at the end of input and change to \0
+	key[strcspn(key, "\n")] = '\0';
+	text[strcspn(text, "\n")] = '\0';
 
 	// Set up the server address struct
 	memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
-	portNumber = atoi(argv[2]); // Get the port number, convert to an integer from a string
+	portNumber = atoi(argv[3]); // Get the port number, convert to an integer from a string
 	serverAddress.sin_family = AF_INET; // Create a network-capable socket
 	serverAddress.sin_port = htons(portNumber); // Store the port number
-	serverHostInfo = gethostbyname(argv[1]); // Convert the machine name into a special form of address
+	serverHostInfo = gethostbyname("localhost"); // Convert the machine name into a special form of address
 	if(serverHostInfo == NULL) {fprintf(stderr, "CLIENT: ERROR, no such host\n"); exit(0); }
 	// Copy in the address
 	memcpy((char*)&serverAddress.sin_addr.s_addr, (char*)serverHostInfo->h_addr, serverHostInfo->h_length);
@@ -69,24 +72,26 @@ int main(int argc, char *argv[]) {
 	if(connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) 
 		error("CLIENT: ERROR connecting");
 
-	// Get input message from user
-	printf("CLIENT: Enter test to send to the server, and then hit enter: ");
-	memset(buffer, '\0', sizeof(buffer)); // Cear out the buffer array
-	fgets(buffer, sizeof(buffer) - 1, stdin); // Get input from the user, trunc to buffer - 1 chars, leaving \0
-	buffer[strcspn(buffer, "\n")] = '\0'; // Remove the trailing \n that fgets adds
+	// Check if the connection receives valid acknowledgment. If not free memory, print error
+	// and exit with value of 2
+	if(!IsValidAck(socketFD)) {
+		free(text);
+		free(key);
+		fprintf(stderr, "Error: could not contact otp_enc_d on port %s", argv[3]);
+		exit(2);	
+	}
+	
+	// create a buffer to store both the key and text separated by a @ symbol. 
+	char outText[100000];
+	memset(outText, '\0', sizeof(outText));
 
-	// Send message to server
-	charsWritten = send(socketFD, buffer, strlen(buffer), 0); // Write to the server
-	if(charsWritten < 0) error("CLIENT: ERROR writing to socket");
-	if(charsWritten < strlen(buffer)) printf("CLIENT: WARNING: Not all data written to socket!\n");
-
-	// Get return message from server
-	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
-	charsRead = recv(socketFD, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
-	if(charsRead < 0) error("CLIENT: ERROR reading from socket");
-	printf("CLIENT: I received this from the server: \"%s\"\n", buffer);
+	strcpy(outText, key);
+	strcpy(outText + strlen(key), "@");
+	strcpy(outText + strlen(key) + 1, text);
 
 	close(socketFD); // Close the socket
+	free(text);
+	free(key);
 	return 0;
 }
 
@@ -123,4 +128,18 @@ char* FileToText(char* fileName) {
 		fclose(fptr);
 		return text;
 	}
+}
+
+int IsValidAck(int socketFD) {
+	int charsRead;
+	char buffer[1];
+	int isValidBool = 1;
+
+	buffer[0] = '\0';
+
+	charsRead = recv(socketFD, buffer, 1, 0);
+	if(buffer[0] == 'x') {
+		isValidBool = 0;
+	}
+	return isValidBool;
 }

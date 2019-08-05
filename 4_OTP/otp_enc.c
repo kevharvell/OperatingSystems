@@ -14,6 +14,8 @@ void error(const char *msg) { perror(msg); exit(0); }
 int IsInputValid(char*);
 char* FileToText(char*);
 int IsValidAck(int);
+void ReceiveSocket(char*, int);
+void SendSocket(char*, int);
 
 int main(int argc, char *argv[]) {
 	int socketFD, portNumber, charsWritten, charsRead;
@@ -81,13 +83,23 @@ int main(int argc, char *argv[]) {
 		exit(2);	
 	}
 	
-	// create a buffer to store both the key and text separated by a @ symbol. 
+	// create a outText string to store both the key and text separated by a @ symbol. 
+	// 100,000 is an arbitrary length to hold both key and text. This could pose an issue
+	// with very large text sizes beyond 100,000.
 	char outText[100000];
 	memset(outText, '\0', sizeof(outText));
 
 	strcpy(outText, key);
 	strcpy(outText + strlen(key), "@");
 	strcpy(outText + strlen(key) + 1, text);
+
+	// send outText string to be encoded on server
+	SendSocket(outText, socketFD);
+
+	// recieve the ciphertext from server
+	memset(text, '\0', sizeof(text));
+	ReceiveSocket(text, socketFD);
+	printf("%s\n", text);
 
 	close(socketFD); // Close the socket
 	free(text);
@@ -130,6 +142,9 @@ char* FileToText(char* fileName) {
 	}
 }
 
+// IsValidAck
+// Makes a recv() call and checks to see if 'x' was returned. 'x' is a signal that the client
+// is communicating with the wrong daemon
 int IsValidAck(int socketFD) {
 	int charsRead;
 	char buffer[1];
@@ -142,4 +157,38 @@ int IsValidAck(int socketFD) {
 		isValidBool = 0;
 	}
 	return isValidBool;
+}
+
+// ReceiveSocket
+// Calls recv() looking for 99,999 characters and stores in the received text pointer.
+// Then checks to see that all characters were received. 
+void ReceiveSocket(char* text, int socketFD) {
+	int charsRead;
+	// clear text string to write to it
+	memset(text, '\0', sizeof(text));
+	// read client message from socket
+	charsRead = recv(socketFD, text, 99999, 0);
+
+	while(charsRead != 99999) {
+		charsRead += recv(socketFD, text + charsRead, 99999, 0);
+		if(charsRead < 0)
+			error("ERROR: reading client message from socket");
+	}
+}
+
+// SendSocket
+// Calls send() to send outText to specified server.
+// Then checks to see that all characters were sent.
+void SendSocket(char* outText, int socketFD) {
+	int charsWritten;
+	int length = strlen(outText);
+
+	// write to server
+	charsWritten = send(socketFD, outText, 99999, 0); 
+
+	while(charsWritten != 99999) {
+		// read client message from socket
+		charsWritten += send(socketFD, outText + charsWritten, 99999, 0);
+		if(charsWritten < 0) error("ERROR: reading client message from socket");
+	}
 }

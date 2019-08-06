@@ -21,14 +21,12 @@ int main(int argc, char *argv[]) {
 	int socketFD, portNumber, charsWritten, charsRead;
 	struct sockaddr_in serverAddress;
 	struct hostent* serverHostInfo;
-	char buffer[256];
 
 	// Check usage & args
 	if(argc < 4) { fprintf(stderr, "Not enough arguments."); exit(0); }
 
 	// Get text from file
 	char* text = FileToText(argv[1]);
-	printf("Text received from file is:\n%s\n", text);
 
 	// Get key from file
 	char* key = FileToText(argv[2]);
@@ -164,16 +162,18 @@ int IsValidAck(int socketFD) {
 // Then checks to see that all characters were received. 
 void ReceiveSocket(char* text, int socketFD) {
 	int charsRead;
+	char tempText[100000];
 	// clear text string to write to it
-	memset(text, '\0', sizeof(text));
+	memset(tempText, '\0', sizeof(tempText));
 	// read client message from socket
-	charsRead = recv(socketFD, text, 99999, 0);
+	charsRead = recv(socketFD, tempText, 99999, 0);
 
 	while(charsRead != 99999) {
-		charsRead += recv(socketFD, text + charsRead, 99999, 0);
+		charsRead += recv(socketFD, tempText + charsRead, 99999, 0);
 		if(charsRead < 0)
 			error("ERROR: reading client message from socket");
 	}
+	strcpy(text, tempText);
 }
 
 // SendSocket

@@ -141,7 +141,7 @@ char* FileToText(char* fileName) {
 }
 
 // IsValidAck
-// Makes a recv() call and checks to see if 'x' was returned. 'x' is a signal that the client
+// Makes a recv() call and checks to see if 'a' was returned. 'a' is a signal that the client
 // is communicating with the wrong daemon
 int IsValidAck(int socketFD) {
 	int charsRead;

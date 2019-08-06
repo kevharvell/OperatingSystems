@@ -11,7 +11,7 @@
 void error(const char *msg) { perror(msg); exit(0); }
 
 // function prototypes
-void Encrypt(char*, char*);
+void Decrypt(char*, char*);
 char* GetKey(char*);
 char* GetText(char*);
 void ReapZombies(pid_t[], int[], int);
@@ -48,7 +48,9 @@ int main(int argc, char* argv[]) {
 	listen(listenSocketFD, 5); // Flip the socket on - it can now receive up to 5 connections
 	
 	while(1) {
+		// Clean up zombie processes that have completed
 		ReapZombies(pidArr, connections, numConnections);
+		
 		// Accept a connection, blocking if one is not available until one connects
 		sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
 		establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
@@ -63,26 +65,26 @@ int main(int argc, char* argv[]) {
 				break;
 			case 0:
 				// child code
-				// send out a unique identifier so client knows that we are otp_enc_d
+				// send out a unique identifier so client knows that we are otp_dec_d
 				SendAck(establishedConnectionFD);
 				
 				// store the received message
-				char inText[100000];
+				char inText[300000];
 				memset(inText, '\0', sizeof(inText));
 
 				ReceiveSocket(inText, establishedConnectionFD);
 				
 				// get text and key contents from inText
-				char* text = malloc(50000*sizeof(char));
-				char* key = malloc(50000*sizeof(char));
+				char* text = malloc(150000*sizeof(char));
+				char* key = malloc(150000*sizeof(char));
 				memset(text, '\0', sizeof(text));
 				memset(key, '\0', sizeof(key));
 
 				strcpy(text, GetText(inText));
 				strcpy(key, GetKey(inText));
 				
-				// Encrypt text using key
-				Encrypt(key, text);			
+				// Decrypt text using key
+				Decrypt(key, text);			
 				SendSocket(text, establishedConnectionFD);
 				free(text);
 				free(key);
@@ -99,12 +101,12 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
-// Encrypt
-void Encrypt(char* key, char* text) {
+// Decrypt
+void Decrypt(char* key, char* text) {
 	int i;
 	int charCode;
-	char* encryptText = malloc(strlen(text) * sizeof(char));
-	memset(encryptText, '\0', sizeof(encryptText));
+	char* decryptText = malloc(strlen(text) * sizeof(char));
+	memset(decryptText, '\0', sizeof(decryptText));
 	for(i = 0; i < strlen(text); i++) {
 		// look for spaces in key/text
 		// these spaces are encoded to '@' symbol (charCode 64).
@@ -118,8 +120,13 @@ void Encrypt(char* key, char* text) {
 			key[i] = 64;
 		}
 
-		// Create encrypted charCode using text + key % 27
-		charCode = ((text[i] + key[i] - 128) % 27) + 64;
+		// Create encrypted charCode using text - key % 27
+		// Possible negative charCode needs to be accounted for; if negative, 27 added.
+		int temp = text[i] - key[i];
+		temp = temp % 27;
+		if(temp < 0)
+			temp += 27;
+		charCode = temp + 64;
 
 		// turn key and charCode characters back into space from '@' to maintain original data
 		// text not turned back because it is going to be overwritten by the encrypted text next.
@@ -130,17 +137,17 @@ void Encrypt(char* key, char* text) {
 			charCode = 32;
 		}
 
-		encryptText[i] = charCode;
+		decryptText[i] = charCode;
 	}
-	strcpy(text, encryptText);
-	free(encryptText);
+	strcpy(text, decryptText);
+	free(decryptText);
 }
 
 // GetKey
 // inText is a string with the key and text together separated by '@'. This function looks for the '@'
 // and assigns everything before it to a key variable
 char* GetKey(char* inText) {
-	char key[50000];
+	char key[150000];
 	int i;
 	for(i = 0; i < strlen(inText); i++) {
 		if(inText[i] == '@') {
@@ -154,7 +161,7 @@ char* GetKey(char* inText) {
 // inText is a string with the key and text together separated by '@'. This function looks for the '@' 
 // and assigns everything after it to a text variable
 char* GetText(char* inText) {
-	char text[50000];
+	char text[150000];
 	int i;
 	for(i = 0; i < strlen(inText); i++) {
 		if(inText[i] == '@') {
@@ -188,26 +195,26 @@ void ReapZombies(pid_t pidArr[], int connections[], int numConnections) {
 	}
 }
 // ReceiveSocket
-// Calls recv() looking for 99,999 characters and stores in the received text pointer.
+// Calls recv() looking for 299,999 characters and stores in the received text pointer.
 // Then checks to see that all characters were received. 
 void ReceiveSocket(char* text, int socketFD) {
 	int charsRead;
 	// clear text string to write to it
 	memset(text, '\0', sizeof(text));
 	// read client message from socket
-	charsRead = recv(socketFD, text, 99999, 0);
+	charsRead = recv(socketFD, text, 299999, 0);
 
-	while(charsRead != 99999) {
-		charsRead += recv(socketFD, text + charsRead, 99999, 0);
+	while(charsRead != 299999) {
+		charsRead += recv(socketFD, text + charsRead, 299999, 0);
 		if(charsRead < 0)
 			error("ERROR: reading client message from socket");
 	}
 }
 
 // SendAck
-// Sends a single char 'a' to the client to identify itself as otp_enc_d
+// Sends a single char 'x' to the client to identify itself as otp_dec_d
 void SendAck(int establishedConnectionFD) {
-	char* code = "a";
+	char* code = "x";
 	int charsWritten;
 	charsWritten = send(establishedConnectionFD, code, 1, 0);
 }
@@ -220,9 +227,9 @@ void SendSocket(char* outText, int socketFD) {
 	int length = strlen(outText);
 	
 	// write to server
-	charsWritten = send(socketFD, outText, 99999, 0); 
+	charsWritten = send(socketFD, outText, 299999, 0); 
 
-	while(charsWritten != 99999) {
+	while(charsWritten != 299999) {
 		// read client message from socket
 		charsWritten += send(socketFD, outText + charsWritten, 299999, 0);
 		if(charsWritten < 0) error("ERROR: reading client message from socket");

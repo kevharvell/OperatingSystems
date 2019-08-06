@@ -67,14 +67,14 @@ int main(int argc, char* argv[]) {
 				SendAck(establishedConnectionFD);
 				
 				// store the received message
-				char inText[100000];
+				char inText[200000];
 				memset(inText, '\0', sizeof(inText));
 
 				ReceiveSocket(inText, establishedConnectionFD);
 				
 				// get text and key contents from inText
-				char* text = malloc(50000*sizeof(char));
-				char* key = malloc(50000*sizeof(char));
+				char* text = malloc(100000*sizeof(char));
+				char* key = malloc(100000*sizeof(char));
 				memset(text, '\0', sizeof(text));
 				memset(key, '\0', sizeof(key));
 
@@ -89,6 +89,7 @@ int main(int argc, char* argv[]) {
 				exit(0);
 				break;
 			default:
+				// parent code - keeps track of child connections
 				pidArr[numConnections] = spawnID;
 				connections[numConnections] = establishedConnectionFD;
 				numConnections++;
@@ -100,6 +101,10 @@ int main(int argc, char* argv[]) {
 }
 
 // Encrypt
+// Encrytps the text using the given key. There's some jankiness involved due to the outlying space
+// character not being in the charCode range of 65-90 (A-Z). Thus, I am changing spaces to '@' and vice
+// versa because '@' is charCode 64, lending more convenience when generating random charCodes in the
+// range 64-90.
 void Encrypt(char* key, char* text) {
 	int i;
 	int charCode;
@@ -129,7 +134,7 @@ void Encrypt(char* key, char* text) {
 		if(charCode == 64) {
 			charCode = 32;
 		}
-
+		// set encrypted text to generated charCode
 		encryptText[i] = charCode;
 	}
 	strcpy(text, encryptText);
@@ -140,7 +145,7 @@ void Encrypt(char* key, char* text) {
 // inText is a string with the key and text together separated by '@'. This function looks for the '@'
 // and assigns everything before it to a key variable
 char* GetKey(char* inText) {
-	char key[50000];
+	char key[100000];
 	int i;
 	for(i = 0; i < strlen(inText); i++) {
 		if(inText[i] == '@') {
@@ -154,7 +159,7 @@ char* GetKey(char* inText) {
 // inText is a string with the key and text together separated by '@'. This function looks for the '@' 
 // and assigns everything after it to a text variable
 char* GetText(char* inText) {
-	char text[50000];
+	char text[100000];
 	int i;
 	for(i = 0; i < strlen(inText); i++) {
 		if(inText[i] == '@') {
@@ -188,17 +193,17 @@ void ReapZombies(pid_t pidArr[], int connections[], int numConnections) {
 	}
 }
 // ReceiveSocket
-// Calls recv() looking for 99,999 characters and stores in the received text pointer.
+// Calls recv() looking for 199,999 characters and stores in the received text pointer.
 // Then checks to see that all characters were received. 
 void ReceiveSocket(char* text, int socketFD) {
 	int charsRead;
 	// clear text string to write to it
 	memset(text, '\0', sizeof(text));
 	// read client message from socket
-	charsRead = recv(socketFD, text, 99999, 0);
+	charsRead = recv(socketFD, text, 199999, 0);
 
-	while(charsRead != 99999) {
-		charsRead += recv(socketFD, text + charsRead, 99999, 0);
+	while(charsRead != 199999) {
+		charsRead += recv(socketFD, text + charsRead, 199999, 0);
 		if(charsRead < 0)
 			error("ERROR: reading client message from socket");
 	}
@@ -220,11 +225,11 @@ void SendSocket(char* outText, int socketFD) {
 	int length = strlen(outText);
 	
 	// write to server
-	charsWritten = send(socketFD, outText, 99999, 0); 
+	charsWritten = send(socketFD, outText, 199999, 0); 
 
-	while(charsWritten != 99999) {
+	while(charsWritten != 199999) {
 		// read client message from socket
-		charsWritten += send(socketFD, outText + charsWritten, 299999, 0);
+		charsWritten += send(socketFD, outText + charsWritten, 199999, 0);
 		if(charsWritten < 0) error("ERROR: reading client message from socket");
 	}
 }

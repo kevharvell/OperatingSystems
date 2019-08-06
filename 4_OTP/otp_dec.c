@@ -82,9 +82,9 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// create a outText string to store both the key and text separated by a @ symbol. 
-	// 100,000 is an arbitrary length to hold both key and text. This could pose an issue
+	// 200,000 is an arbitrary length to hold both key and text. This could pose an issue
 	// with very large text sizes beyond 100,000.
-	char outText[300000];
+	char outText[200000];
 	memset(outText, '\0', sizeof(outText));
 
 	strcpy(outText, key);
@@ -158,18 +158,18 @@ int IsValidAck(int socketFD) {
 }
 
 // ReceiveSocket
-// Calls recv() looking for 299,999 characters and stores in the received text pointer.
+// Calls recv() looking for 199,999 characters and stores in the received text pointer.
 // Then checks to see that all characters were received. 
 void ReceiveSocket(char* text, int socketFD) {
 	int charsRead;
-	char tempText[300000];
+	char tempText[200000];
 	// clear text string to write to it
 	memset(tempText, '\0', sizeof(tempText));
 	// read client message from socket
-	charsRead = recv(socketFD, tempText, 299999, 0);
+	charsRead = recv(socketFD, tempText, 199999, 0);
 
-	while(charsRead != 299999) {
-		charsRead += recv(socketFD, tempText + charsRead, 299999, 0);
+	while(charsRead != 199999) {
+		charsRead += recv(socketFD, tempText + charsRead, 199999, 0);
 		if(charsRead < 0)
 			error("ERROR: reading client message from socket");
 	}
@@ -184,11 +184,11 @@ void SendSocket(char* outText, int socketFD) {
 	int length = strlen(outText);
 
 	// write to server
-	charsWritten = send(socketFD, outText, 299999, 0); 
+	charsWritten = send(socketFD, outText, 199999, 0); 
 
-	while(charsWritten != 299999) {
+	while(charsWritten != 199999) {
 		// read client message from socket
-		charsWritten += send(socketFD, outText + charsWritten, 299999, 0);
+		charsWritten += send(socketFD, outText + charsWritten, 199999, 0);
 		if(charsWritten < 0) error("ERROR: reading client message from socket");
 	}
 }
